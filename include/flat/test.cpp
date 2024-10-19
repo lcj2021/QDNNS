@@ -31,12 +31,12 @@ void initialize_data(float * ref,
 
     // Generate random reference points
     for (int i=0; i<ref_nb*dim; ++i) {
-        ref[i] = 10. * (float)(rand() / (double)RAND_MAX);
+        ref[i] = 1e6 * (float)(rand() / (double)RAND_MAX);
     }
 
     // Generate random query points
     for (int i=0; i<query_nb*dim; ++i) {
-        query[i] = 10. * (float)(rand() / (double)RAND_MAX);
+        query[i] = 1e6 * (float)(rand() / (double)RAND_MAX);
     }
 }
 
@@ -61,60 +61,12 @@ float compute_distance(const float * ref,
                        int           dim,
                        int           ref_index,
                        int           query_index) {
-    float sum = 0.f;
+    double sum = 0.f;
     for (int d=0; d<dim; ++d) {
         sum += metric(ref[d * ref_nb + ref_index], query[d * query_nb + query_index]);
     }
-    return sqrtf(sum);
+    return sum;
 }
-
-
-/**
- * Gathers at the beginning of the `dist` array the k smallest values and their
- * respective index (in the initial array) in the `index` array. After this call,
- * only the k-smallest distances are available. All other distances might be lost.
- *
- * Since we only need to locate the k smallest distances, sorting the entire array
- * would not be very efficient if k is relatively small. Instead, we perform a
- * simple insertion sort by eventually inserting a given distance in the first
- * k values.
- *
- * @param dist    array containing the `length` distances
- * @param index   array containing the index of the k smallest distances
- * @param length  total number of distances
- * @param k       number of smallest distances to locate
- */
-void modified_insertion_sort(float *dist, int *index, int length, int k){
-
-    // Initialise the first index
-    index[0] = 0;
-
-    // Go through all points
-    for (int i=1; i<length; ++i) {
-
-        // Store current distance and associated index
-        float curr_dist  = dist[i];
-        int   curr_index = i;
-
-        // Skip the current value if its index is >= k and if it's higher the k-th slready sorted mallest value
-        if (i >= k && curr_dist >= dist[k-1]) {
-            continue;
-        }
-
-        // Shift values (and indexes) higher that the current distance to the right
-        int j = std::min(i, k-1);
-        while (j > 0 && dist[j-1] > curr_dist) {
-            dist[j]  = dist[j-1];
-            index[j] = index[j-1];
-            --j;
-        }
-
-        // Write the current distance and index at their position
-        dist[j]  = curr_dist;
-        index[j] = curr_index; 
-    }
-}
-
 
 /*
  * For each input query point, locates the k-NN (indexes and distances) among the reference points.
@@ -130,33 +82,34 @@ void modified_insertion_sort(float *dist, int *index, int length, int k){
  */
 template<float (*metric)(float, float)>
 bool knn_c(const float * ref,
-           int           ref_nb,
+           size_t           ref_nb,
            const float * query,
-           int           query_nb,
+           size_t           query_nb,
            int           dim,
            int           k,
            float *       knn_dist,
            int *         knn_index) {
 
-
     // Process one query point at the time
-#pragma omp parallel for num_threads(96)
+#pragma omp parallel for num_threads(24)
     for (int i=0; i<query_nb; ++i) {
-        std::vector<float> dist(ref_nb);
-        std::vector<int>   index(ref_nb);
-        // Compute all distances / indexes
+        std::vector<std::pair<float, int>> pair(ref_nb);
         for (int j=0; j<ref_nb; ++j) {
-            dist[j]  = compute_distance<metric>(ref, ref_nb, query, query_nb, dim, j, i);
-            index[j] = j;
+            pair[j].first  = compute_distance<metric>(ref, ref_nb, query, query_nb, dim, j, i);
+            pair[j].second = j;
         }
 
         // Sort distances / indexes
-        modified_insertion_sort(dist.data(), index.data(), ref_nb, k);
+        // modified_insertion_sort<lt>(dist.data(), index.data(), ref_nb, k);
+        std::partial_sort(pair.begin(), pair.begin() + k, pair.end(), [] (auto &a, auto &b) { 
+        // std::sort(pair.begin(), pair.end(), [] (auto &a, auto &b) { 
+            if (a.first !=  b.first) return a.first < b.first;
+            return (a).second < (b).second;
+        });
 
-        // Copy k smallest distances and their associated index
         for (int j=0; j<k; ++j) {
-            knn_dist[j * query_nb + i]  = dist[j];
-            knn_index[j * query_nb + i] = index[j];
+            knn_dist[j * query_nb + i]  = pair[j].first;
+            knn_index[j * query_nb + i] = pair[j].second;
         }
 
         if (rand() % 100 < 1) {
@@ -207,8 +160,8 @@ bool test(const float * ref,
           int           nb_iterations) {
 
     // Parameters
-    const float precision    = 0.001f; // distance error max
-    const float min_accuracy = 0.999f; // percentage of correct values required
+    const float precision    = 1e-6; // distance error max
+    const float min_accuracy = 1-1e-6; // percentage of correct values required
 
     // Display k-NN function name
     printf("- %-17s : \n", name);
@@ -256,11 +209,12 @@ bool test(const float * ref,
 
     // Display report
     if (precision_accuracy >= min_accuracy && index_accuracy >= min_accuracy ) {
-        printf("PASSED in %8.5f seconds (averaged over %3d iterations)\n", elapsed_time / nb_iterations, nb_iterations);
+        printf("SUCCESS\n");
     }
     else {
         printf("FAILED\n");
     }
+    printf("Elapsed in %8.5f seconds (averaged over %3d iterations)\n", elapsed_time / nb_iterations, nb_iterations);
 
     return true;
 }
@@ -274,15 +228,15 @@ bool test(const float * ref,
 int main(void) {
 
     // Parameters
-    const int ref_nb   = 1'000'000;
-    const int query_nb = 64;
+    const size_t ref_nb   = 1'000'000;
+    const size_t query_nb = 32;
     const int dim      = 1024;
     const int k        = 100;
 
     // Display
     printf("PARAMETERS\n");
-    printf("- Number reference points : %d\n",   ref_nb);
-    printf("- Number query points     : %d\n",   query_nb);
+    printf("- Number reference points : %ld\n",   ref_nb);
+    printf("- Number query points     : %ld\n",   query_nb);
     printf("- Dimension of points     : %d\n",   dim);
     printf("- Number of neighbors     : %d\n\n", k);
 
@@ -297,7 +251,7 @@ int main(void) {
     float * query      = (float*) malloc(query_nb * dim * sizeof(float));
     float * knn_dist   = (float*) malloc(query_nb * k   * sizeof(float));
     int   * knn_index  = (int*)   malloc(query_nb * k   * sizeof(int));
-    size_t total_memory = ref_nb   * dim * sizeof(float) + query_nb * dim * sizeof(float) + query_nb * k * sizeof(float) + query_nb * k * sizeof(int);
+    size_t total_memory = (size_t)ref_nb * dim * sizeof(float) + query_nb * dim * sizeof(float) + query_nb * k * sizeof(float) + query_nb * k * sizeof(int);
     std::cout << "Total memory allocated: " << (total_memory) / 1024.0 / 1024.0 / 1024.0 << " GB" << std::endl;
 
     // Allocation checks
@@ -315,7 +269,7 @@ int main(void) {
 
     // Compute the ground truth k-NN distances and indexes for each query point
     printf("Ground truth computation in progress...\n\n");
-    if (!knn_c<IP>(ref, ref_nb, query, query_nb, dim, k, knn_dist, knn_index)) {
+    if (!knn_c<L2>(ref, ref_nb, query, query_nb, dim, k, knn_dist, knn_index)) {
         free(ref);
 	    free(query);
 	    free(knn_dist);
@@ -327,8 +281,7 @@ int main(void) {
     printf("TESTS\n");
     // test(ref, ref_nb, query, query_nb, dim, k, knn_dist, knn_index, &knn_c,            "knn_c",              2);
     test(ref, ref_nb, query, query_nb, dim, k, knn_dist, knn_index, &knn_cuda_global,  "knn_cuda_global",  1); 
-    // test(ref, ref_nb, query, query_nb, dim, k, knn_dist, knn_index, &knn_cuda_texture, "knn_cuda_texture", 100); 
-    // test(ref, ref_nb, query, query_nb, dim, k, knn_dist, knn_index, &knn_cublas,       "knn_cublas",       100); 
+    test(ref, ref_nb, query, query_nb, dim, k, knn_dist, knn_index, &knn_cublas,       "knn_cublas",       100); 
 
     // Deallocate memory 
     free(ref);

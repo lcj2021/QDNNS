@@ -1,0 +1,57 @@
+cmake_minimum_required(VERSION 3.0)
+project(test_gpu)
+# set(CMAKE_CXX_STANDARD 17)
+
+find_package(CUDA REQUIRED)
+find_package(OpenMP REQUIRED)
+find_package(CUDAToolkit REQUIRED)
+find_package(LAPACK REQUIRED)
+find_package(BLAS REQUIRED)
+
+# include_directories(.)
+# include_directories(${CUDA_INCLUDE_DIRS})
+
+file(GLOB SRC_LIST "*.cpp" "*.cu")
+file(GLOB HEADER_LIST "*.h" "*.cuh")
+
+cuda_add_library(gpu SHARED
+    ${SRC_LIST}
+    ${HEADER_LIST}
+)
+target_link_libraries(gpu
+    CUDA::cudart
+    CUDA::cublas
+    gtest
+    OpenMP::OpenMP_CXX
+    ${BLAS_LIBRARIES}
+    ${LAPACK_LIBRARIES}
+)
+
+target_include_directories(gpu PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>)
+
+target_compile_definitions(gpu PRIVATE FINTEGER=int)
+
+add_executable(test_gpu test_gpu.cpp)
+target_sources(test_gpu PRIVATE
+    ${SRC_LIST}
+    ${HEADER_LIST}
+)
+target_compile_definitions(test_gpu PRIVATE FINTEGER=int)
+
+target_compile_definitions(test_gpu PRIVATE DEBUG_LOG)
+
+
+target_link_libraries(test_gpu PUBLIC
+CUDA::cudart 
+CUDA::cublas
+gtest
+OpenMP::OpenMP_CXX
+${CUDA_LIBRARIES}
+${BLAS_LIBRARIES}
+${LAPACK_LIBRARIES}
+gpu
+)
+
+
+# clear && rm CMakeCache.txt && cmake . && make -j8

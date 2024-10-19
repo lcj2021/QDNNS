@@ -31,6 +31,8 @@
 *.out
 *.app
 
+build/
+
 # python files
 __pycache__/
 *.pyc

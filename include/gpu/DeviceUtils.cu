@@ -16,9 +16,6 @@ namespace faiss {
 namespace gpu {
 
 int getCurrentDevice() {
-    #ifdef DEBUG_LOG
-       printf("Before cudaGetDevice call in file %s, line %d\n", __FILE__, __LINE__);
-    #endif
     int dev = -1;
     CUDA_VERIFY(cudaGetDevice(&dev));
     FAISS_ASSERT(dev != -1);

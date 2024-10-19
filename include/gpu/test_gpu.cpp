@@ -1,857 +1,154 @@
-// #include <GpuIndexFlat.h>
-// #include <StandardGpuResources.h>
-// #include <IndexUtils.h>
-// #include <TestUtils.h>
-// #include <DeviceUtils.h>
-// #include <sstream>
-// #include <unordered_map>
-// #include <vector>
-
-// // FIXME: figure out a better way to test fp16
-// constexpr float kF16MaxRelErr = 0.07f;
-// constexpr float kF32MaxRelErr = 6e-3f;
-
-// struct TestFlatOptions {
-//     TestFlatOptions()
-//             : metric(faiss::MetricType::METRIC_L2),
-//               metricArg(0),
-//               useFloat16(false),
-//               numVecsOverride(-1),
-//               numQueriesOverride(-1),
-//               kOverride(-1),
-//               dimOverride(-1),
-//               use_raft(false) {}
-
-//     faiss::MetricType metric;
-//     float metricArg;
-
-//     bool useFloat16;
-//     int numVecsOverride;
-//     int numQueriesOverride;
-//     int kOverride;
-//     int dimOverride;
-//     bool use_raft;
-// };
-
-// void testFlat(const TestFlatOptions& opt) {
-//     int numVecs = opt.numVecsOverride > 0 ? opt.numVecsOverride
-//                                           : faiss::gpu::randVal(1000, 5000);
-//     int dim = opt.dimOverride > 0 ? opt.dimOverride
-//                                   : faiss::gpu::randVal(50, 800);
-//     int numQuery = opt.numQueriesOverride > 0 ? opt.numQueriesOverride
-//                                               : faiss::gpu::randVal(1, 512);
-
-//     // Due to loss of precision in a float16 accumulator, for large k,
-//     // the number of differences is pretty huge. Restrict ourselves to a
-//     // fairly small `k` for float16
-//     int k = opt.useFloat16
-//             ? std::min(faiss::gpu::randVal(1, 50), numVecs)
-//             : std::min(
-//                       faiss::gpu::randVal(1, faiss::gpu::getMaxKSelection()),
-//                       numVecs);
-//     if (opt.kOverride > 0) {
-//         k = opt.kOverride;
-//     }
-
-//     // Construct on a random device to test multi-device, if we have
-//     // multiple devices
-//     int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-//     faiss::gpu::StandardGpuResources res;
-//     res.noTempMemory();
-
-//     faiss::gpu::GpuIndexFlatConfig config;
-//     config.device = device;
-//     config.useFloat16 = opt.useFloat16;
-//     config.use_raft = opt.use_raft;
-
-//     faiss::gpu::GpuIndexFlat gpuIndex(&res, dim, opt.metric, config);
-//     gpuIndex.metric_arg = opt.metricArg;
-
-//     std::vector<float> vecs = faiss::gpu::randVecs(numVecs, dim);
-//     gpuIndex.add(numVecs, vecs.data());
-
-//     std::stringstream str;
-//     str << "metric " << opt.metric << " marg " << opt.metricArg << " numVecs "
-//         << numVecs << " dim " << dim << " useFloat16 " << opt.useFloat16
-//         << " numQuery " << numQuery << " k " << k;
-// }
-
-// int main() {
-//     TestFlatOptions opt;
-//     opt.metric = faiss::MetricType::METRIC_INNER_PRODUCT;
-//     testFlat(opt);
-//     return 0;
-// }
-
-// // nvcc test_gpu.cpp -o test_gpu -I . -lcublas -lcudart
-/**
- * Copyright (c) Facebook, Inc. and its affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
-#include <IndexFlat.h>
+#include <bits/stdc++.h>
 #include <GpuIndexFlat.h>
 #include <StandardGpuResources.h>
 #include <IndexUtils.h>
 #include <TestUtils.h>
 #include <DeviceUtils.h>
-#include <gtest/gtest.h>
 #include <sstream>
-#include <unordered_map>
 #include <vector>
 
-// FIXME: figure out a better way to test fp16
-constexpr float kF16MaxRelErr = 0.07f;
-constexpr float kF32MaxRelErr = 6e-3f;
-
-struct TestFlatOptions {
-    TestFlatOptions()
-            : metric(faiss::MetricType::METRIC_L2),
-              metricArg(0),
-              useFloat16(false),
-              numVecsOverride(-1),
-              numQueriesOverride(-1),
-              kOverride(-1),
-              dimOverride(-1),
-              use_raft(false) {}
-
-    faiss::MetricType metric;
-    float metricArg;
-
-    bool useFloat16;
-    int numVecsOverride;
-    int numQueriesOverride;
-    int kOverride;
-    int dimOverride;
-    bool use_raft;
-};
-
-void testFlat(const TestFlatOptions& opt) {
-    int numVecs = opt.numVecsOverride > 0 ? opt.numVecsOverride
-                                          : faiss::gpu::randVal(1000, 5000);
-    int dim = opt.dimOverride > 0 ? opt.dimOverride
-                                  : faiss::gpu::randVal(50, 800);
-    int numQuery = opt.numQueriesOverride > 0 ? opt.numQueriesOverride
-                                              : faiss::gpu::randVal(1, 512);
-
-    // Due to loss of precision in a float16 accumulator, for large k,
-    // the number of differences is pretty huge. Restrict ourselves to a
-    // fairly small `k` for float16
-    int k = opt.useFloat16
-            ? std::min(faiss::gpu::randVal(1, 50), numVecs)
-            : std::min(
-                      faiss::gpu::randVal(1, faiss::gpu::getMaxKSelection()),
-                      numVecs);
-    if (opt.kOverride > 0) {
-        k = opt.kOverride;
-    }
-
-    faiss::IndexFlat cpuIndex(dim, opt.metric);
-    cpuIndex.metric_arg = opt.metricArg;
-
-    // Construct on a random device to test multi-device, if we have
-    // multiple devices
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    faiss::gpu::GpuIndexFlatConfig config;
-    config.device = device;
-    config.useFloat16 = opt.useFloat16;
-    config.use_raft = opt.use_raft;
-
-    faiss::gpu::GpuIndexFlat gpuIndex(&res, dim, opt.metric, config);
-    gpuIndex.metric_arg = opt.metricArg;
-
-    std::vector<float> vecs = faiss::gpu::randVecs(numVecs, dim);
-    cpuIndex.add(numVecs, vecs.data());
-    gpuIndex.add(numVecs, vecs.data());
-
-    std::stringstream str;
-    str << "metric " << opt.metric << " marg " << opt.metricArg << " numVecs "
-        << numVecs << " dim " << dim << " useFloat16 " << opt.useFloat16
-        << " numQuery " << numQuery << " k " << k;
-
-    // To some extent, we depend upon the relative error for the test
-    // for float16
-    faiss::gpu::compareIndices(
-            cpuIndex,
-            gpuIndex,
-            numQuery,
-            dim,
-            k,
-            str.str(),
-            opt.useFloat16 ? kF16MaxRelErr : kF32MaxRelErr,
-            // FIXME: the fp16 bounds are
-            // useless when math (the accumulator) is
-            // in fp16. Figure out another way to test
-            opt.useFloat16 ? 0.99f : 0.1f,
-            opt.useFloat16 ? 0.65f : 0.015f);
-}
-
-TEST(TestGpuIndexFlat, IP_Float32) {
-    for (int tries = 0; tries < 3; ++tries) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_INNER_PRODUCT;
-        opt.useFloat16 = false;
-
-        testFlat(opt);
-
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-TEST(TestGpuIndexFlat, L1_Float32) {
-    TestFlatOptions opt;
-    opt.metric = faiss::MetricType::METRIC_L1;
-    opt.useFloat16 = false;
-
-    testFlat(opt);
-
-#if defined USE_NVIDIA_RAFT
-    opt.use_raft = true;
-    testFlat(opt);
-#endif
-}
-
-TEST(TestGpuIndexFlat, Lp_Float32) {
-    TestFlatOptions opt;
-    opt.metric = faiss::MetricType::METRIC_Lp;
-    opt.metricArg = 5;
-    opt.useFloat16 = false;
-
-    testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-    opt.use_raft = true;
-    testFlat(opt);
-#endif
-}
-
-TEST(TestGpuIndexFlat, L2_Float32) {
-    for (int tries = 0; tries < 3; ++tries) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_L2;
-
-        opt.useFloat16 = false;
-
-        testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-// At least one test for the k > 1024 select
-TEST(TestGpuIndexFlat, L2_k_2048) {
-    if (faiss::gpu::getMaxKSelection() >= 2048) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_L2;
-        opt.useFloat16 = false;
-        opt.kOverride = 2048;
-        opt.dimOverride = 128;
-        opt.numVecsOverride = 10000;
-
-        testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-// test specialized k == 1 codepath
-TEST(TestGpuIndexFlat, L2_Float32_K1) {
-    for (int tries = 0; tries < 3; ++tries) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_L2;
-        opt.useFloat16 = false;
-        opt.kOverride = 1;
-
-        testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-TEST(TestGpuIndexFlat, IP_Float16) {
-    for (int tries = 0; tries < 3; ++tries) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_INNER_PRODUCT;
-        opt.useFloat16 = true;
-
-        testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-TEST(TestGpuIndexFlat, L2_Float16) {
-    for (int tries = 0; tries < 3; ++tries) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_L2;
-        opt.useFloat16 = true;
-
-        testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-// test specialized k == 1 codepath
-TEST(TestGpuIndexFlat, L2_Float16_K1) {
-    for (int tries = 0; tries < 3; ++tries) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_L2;
-        opt.useFloat16 = true;
-        opt.kOverride = 1;
-
-        testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-// test tiling along a huge vector set
-TEST(TestGpuIndexFlat, L2_Tiling) {
-    for (int tries = 0; tries < 2; ++tries) {
-        TestFlatOptions opt;
-        opt.metric = faiss::MetricType::METRIC_L2;
-        opt.useFloat16 = false;
-        opt.numVecsOverride = 1000000;
-
-        // keep the rest of the problem reasonably small
-        opt.numQueriesOverride = 4;
-        opt.dimOverride = 64;
-        opt.kOverride = 64;
-
-        testFlat(opt);
-#if defined USE_NVIDIA_RAFT
-        opt.use_raft = true;
-        testFlat(opt);
-#endif
-    }
-}
-
-TEST(TestGpuIndexFlat, QueryEmpty) {
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    faiss::gpu::GpuIndexFlatConfig config;
-    config.device = 0;
-    config.useFloat16 = false;
-    config.use_raft = false;
-    int dim = 128;
-    faiss::gpu::GpuIndexFlatL2 gpuIndex(&res, dim, config);
-
-    // Querying an empty index should not blow up, and just return
-    // (FLT_MAX, -1)
-    int numQuery = 10;
-    int k = 50;
-    std::vector<float> queries(numQuery * dim, 1.0f);
-
-    std::vector<float> dist(numQuery * k, 0);
-    std::vector<faiss::idx_t> ind(numQuery * k);
-
-    gpuIndex.search(numQuery, queries.data(), k, dist.data(), ind.data());
-
-    for (auto d : dist) {
-        EXPECT_EQ(d, std::numeric_limits<float>::max());
-    }
-
-    for (auto i : ind) {
-        EXPECT_EQ(i, -1);
-    }
-}
-
-void testCopyFrom(bool use_raft) {
-    int numVecs = faiss::gpu::randVal(100, 200);
-    int dim = faiss::gpu::randVal(1, 1000);
-
-    std::vector<float> vecs = faiss::gpu::randVecs(numVecs, dim);
-
-    faiss::IndexFlatL2 cpuIndex(dim);
-    cpuIndex.add(numVecs, vecs.data());
-
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-    for (bool useFloat16 : {false, true}) {
-        faiss::gpu::GpuIndexFlatConfig config;
-        config.device = device;
-        config.useFloat16 = useFloat16;
-        config.use_raft = use_raft;
-
-        // Fill with garbage values
-        faiss::gpu::GpuIndexFlatL2 gpuIndex(&res, 2000, config);
-        gpuIndex.copyFrom(&cpuIndex);
-
-        EXPECT_EQ(cpuIndex.ntotal, gpuIndex.ntotal);
-        EXPECT_EQ(gpuIndex.ntotal, numVecs);
-
-        EXPECT_EQ(cpuIndex.d, gpuIndex.d);
-        EXPECT_EQ(cpuIndex.d, dim);
-
-        std::vector<float> gpuVals(numVecs * dim);
-        gpuIndex.reconstruct_n(0, gpuIndex.ntotal, gpuVals.data());
-
-        std::vector<float> cpuVals(numVecs * dim);
-        cpuIndex.reconstruct_n(0, gpuIndex.ntotal, cpuVals.data());
-
-        // The CPU is the source of (float32) truth here, while the GPU index
-        // may be in float16 mode and thus was subject to rounding
-        if (useFloat16) {
-            EXPECT_EQ(gpuVals, faiss::gpu::roundToHalf(cpuVals));
-        } else {
-            // Should be exactly the same
-            EXPECT_EQ(gpuVals, cpuVals);
-        }
-    }
-}
-
-TEST(TestGpuIndexFlat, CopyFrom) {
-    testCopyFrom(false);
-}
-
-#if defined USE_NVIDIA_RAFT
-TEST(TestRaftGpuIndexFlat, CopyFrom) {
-    testCopyFrom(true);
-}
-#endif
-
-void testCopyTo(bool use_raft) {
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    int numVecs = faiss::gpu::randVal(100, 200);
-    int dim = faiss::gpu::randVal(1, 1000);
-
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-    std::vector<float> vecs = faiss::gpu::randVecs(numVecs, dim);
-
-    for (bool useFloat16 : {false, true}) {
-        faiss::gpu::GpuIndexFlatConfig config;
-        config.device = device;
-        config.useFloat16 = useFloat16;
-        config.use_raft = use_raft;
-
-        faiss::gpu::GpuIndexFlatL2 gpuIndex(&res, dim, config);
-        gpuIndex.add(numVecs, vecs.data());
-
-        // Fill with garbage values
-        faiss::IndexFlatL2 cpuIndex(2000);
-        gpuIndex.copyTo(&cpuIndex);
-
-        EXPECT_EQ(cpuIndex.ntotal, gpuIndex.ntotal);
-        EXPECT_EQ(gpuIndex.ntotal, numVecs);
-
-        EXPECT_EQ(cpuIndex.d, gpuIndex.d);
-        EXPECT_EQ(cpuIndex.d, dim);
-
-        std::vector<float> gpuVals(numVecs * dim);
-        gpuIndex.reconstruct_n(0, gpuIndex.ntotal, gpuVals.data());
-
-        std::vector<float> cpuVals(numVecs * dim);
-        cpuIndex.reconstruct_n(0, gpuIndex.ntotal, cpuVals.data());
-
-        // The GPU is the source of truth here, so the float32 exact comparison
-        // even if the index uses float16 is ok
-        EXPECT_EQ(gpuVals, cpuVals);
-    }
-}
-
-TEST(TestGpuIndexFlat, CopyTo) {
-    testCopyTo(false);
-}
-
-#if defined USE_NVIDIA_RAFT
-TEST(TestRaftGpuIndexFlat, CopyTo) {
-    testCopyTo(true);
-}
-#endif
-
-void testUnifiedMemory(bool use_raft) {
-    // Construct on a random device to test multi-device, if we have
-    // multiple devices
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-    if (!faiss::gpu::getFullUnifiedMemSupport(device)) {
-        return;
-    }
-
-    int dim = 256;
-
-    // FIXME: GpuIndexFlat doesn't support > 2^31 (vecs * dims) due to
-    // kernel indexing, so we can't test unified memory for memory
-    // oversubscription.
-    size_t numVecs = 50000;
-    int numQuery = 10;
-    int k = 10;
-
-    faiss::IndexFlatL2 cpuIndexL2(dim);
-
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    faiss::gpu::GpuIndexFlatConfig config;
-    config.device = device;
-    config.memorySpace = faiss::gpu::MemorySpace::Unified;
-    config.use_raft = use_raft;
-
-    faiss::gpu::GpuIndexFlatL2 gpuIndexL2(&res, dim, config);
-
-    std::vector<float> vecs = faiss::gpu::randVecs(numVecs, dim);
-    cpuIndexL2.add(numVecs, vecs.data());
-    gpuIndexL2.add(numVecs, vecs.data());
-
-    // To some extent, we depend upon the relative error for the test
-    // for float16
-    faiss::gpu::compareIndices(
-            cpuIndexL2,
-            gpuIndexL2,
-            numQuery,
-            dim,
-            k,
-            "Unified Memory",
-            kF32MaxRelErr,
-            0.1f,
-            0.015f);
-}
-
-TEST(TestGpuIndexFlat, UnifiedMemory) {
-    testUnifiedMemory(false);
-}
-
-#if defined USE_NVIDIA_RAFT
-TEST(TestRaftGpuIndexFlat, UnifiedMemory) {
-    testUnifiedMemory(true);
-}
-#endif
-
-void testLargeIndex(bool use_raft) {
-    // Construct on a random device to test multi-device, if we have
-    // multiple devices
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    // Skip this device if we do not have sufficient memory
-    constexpr size_t kMem = size_t(8) * 1024 * 1024 * 1024;
-
-    if (faiss::gpu::getFreeMemory(device) < kMem) {
-        std::cout << "TestGpuIndexFlat.LargeIndex: skipping due "
-                     "to insufficient device memory\n";
-        return;
-    }
-
-    std::cout << "Running LargeIndex test\n";
-
-    size_t dim = 256; // each vec is sizeof(float) * 256 = 1 KiB in size
-    size_t nb = 5000000;
-    size_t nq = 10;
-
-    auto xb = faiss::gpu::randVecs(nb, dim);
-
-    int k = 10;
-
-    faiss::IndexFlatL2 cpuIndexL2(dim);
-
-    faiss::gpu::GpuIndexFlatConfig config;
-    config.device = device;
-    config.use_raft = use_raft;
-    faiss::gpu::GpuIndexFlatL2 gpuIndexL2(&res, dim, config);
-
-    cpuIndexL2.add(nb, xb.data());
-    gpuIndexL2.add(nb, xb.data());
-
-    // To some extent, we depend upon the relative error for the test
-    // for float16
-    faiss::gpu::compareIndices(
-            cpuIndexL2,
-            gpuIndexL2,
-            nq,
-            dim,
-            k,
-            "LargeIndex",
-            kF32MaxRelErr,
-            0.1f,
-            0.015f);
-}
-
-TEST(TestGpuIndexFlat, LargeIndex) {
-    testLargeIndex(false);
-}
-
-#if defined USE_NVIDIA_RAFT
-TEST(TestRaftGpuIndexFlat, LargeIndex) {
-    testLargeIndex(true);
-}
-#endif
-
-void testResidual(bool use_raft) {
-    // Construct on a random device to test multi-device, if we have
-    // multiple devices
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    faiss::gpu::GpuIndexFlatConfig config;
-    config.device = device;
-    config.use_raft = use_raft;
-
-    int dim = 32;
-    faiss::IndexFlat cpuIndex(dim, faiss::MetricType::METRIC_L2);
-    faiss::gpu::GpuIndexFlat gpuIndex(
-            &res, dim, faiss::MetricType::METRIC_L2, config);
-
-    int numVecs = 100;
-    auto vecs = faiss::gpu::randVecs(numVecs, dim);
-    cpuIndex.add(numVecs, vecs.data());
-    gpuIndex.add(numVecs, vecs.data());
-
-    auto indexVecs = std::vector<faiss::idx_t>{0, 2, 4, 6, 8};
-    auto queryVecs = faiss::gpu::randVecs(indexVecs.size(), dim);
-
-    auto residualsCpu = std::vector<float>(indexVecs.size() * dim);
-    auto residualsGpu = std::vector<float>(indexVecs.size() * dim);
-
-    cpuIndex.compute_residual_n(
-            indexVecs.size(),
-            queryVecs.data(),
-            residualsCpu.data(),
-            indexVecs.data());
-    gpuIndex.compute_residual_n(
-            indexVecs.size(),
-            queryVecs.data(),
-            residualsGpu.data(),
-            indexVecs.data());
-
-    // Should be exactly the same, as this is just a single float32 subtraction
-    EXPECT_EQ(residualsCpu, residualsGpu);
-}
-
-TEST(TestGpuIndexFlat, Residual) {
-    testResidual(false);
-}
-
-#if defined USE_NVIDIA_RAFT
-TEST(TestRaftGpuIndexFlat, Residual) {
-    testResidual(true);
-}
-#endif
-
-void testReconstruct(bool use_raft) {
-    // Construct on a random device to test multi-device, if we have
-    // multiple devices
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    int dim = 32;
-    int numVecs = 100;
-    auto vecs = faiss::gpu::randVecs(numVecs, dim);
-    auto vecs16 = faiss::gpu::roundToHalf(vecs);
-
-    for (bool useFloat16 : {false, true}) {
-        faiss::gpu::GpuIndexFlatConfig config;
-        config.device = device;
-        config.useFloat16 = useFloat16;
-        config.use_raft = use_raft;
-
-        faiss::gpu::GpuIndexFlat gpuIndex(
-                &res, dim, faiss::MetricType::METRIC_L2, config);
-
-        gpuIndex.add(numVecs, vecs.data());
-
-        // Test reconstruct
-        {
-            auto reconstructVecs = std::vector<float>(dim);
-            gpuIndex.reconstruct(15, reconstructVecs.data());
-
-            auto& ref = useFloat16 ? vecs16 : vecs;
-
-            for (int i = 0; i < dim; ++i) {
-                EXPECT_EQ(reconstructVecs[i], ref[15 * dim + i]);
-            }
-        }
-
-        // Test reconstruct_n
-        if (false) {
-            auto reconstructVecs = std::vector<float>((numVecs - 1) * dim);
-
-            int startVec = 5;
-            int endVec = numVecs - 1;
-            int numReconstructVec = endVec - startVec + 1;
-
-            gpuIndex.reconstruct_n(
-                    startVec, numReconstructVec, reconstructVecs.data());
-
-            auto& ref = useFloat16 ? vecs16 : vecs;
-
-            for (int i = 0; i < numReconstructVec; ++i) {
-                for (int j = 0; j < dim; ++j) {
-                    EXPECT_EQ(
-                            reconstructVecs[i * dim + j],
-                            ref[(i + startVec) * dim + j]);
-                }
-            }
-        }
-
-        // Test reconstruct_batch
-        if (false) {
-            auto reconstructKeys = std::vector<faiss::idx_t>{1, 3, 5};
-            auto reconstructVecs =
-                    std::vector<float>(reconstructKeys.size() * dim);
-
-            gpuIndex.reconstruct_batch(
-                    reconstructKeys.size(),
-                    reconstructKeys.data(),
-                    reconstructVecs.data());
-
-            auto& ref = useFloat16 ? vecs16 : vecs;
-
-            for (int i = 0; i < reconstructKeys.size(); ++i) {
-                for (int j = 0; j < dim; ++j) {
-                    EXPECT_EQ(
-                            reconstructVecs[i * dim + j],
-                            ref[reconstructKeys[i] * dim + j]);
-                }
-            }
-        }
-    }
-}
-
-TEST(TestGpuIndexFlat, Reconstruct) {
-    testReconstruct(false);
-}
-#if defined USE_NVIDIA_RAFT
-TEST(TestRaftGpuIndexFlat, Reconstruct) {
-    testReconstruct(true);
-}
-#endif
-
-void testSearchAndReconstruct(bool use_raft) {
-    // Construct on a random device to test multi-device, if we have
-    // multiple devices
-    int device = faiss::gpu::randVal(0, faiss::gpu::getNumDevices() - 1);
-
-    faiss::gpu::StandardGpuResources res;
-    res.noTempMemory();
-
-    size_t dim = 32;
-    size_t nb = 5000;
-    size_t nq = 10;
-    int k = 10;
-
-    auto xb = faiss::gpu::randVecs(nb, dim);
-    auto xq = faiss::gpu::randVecs(nq, dim);
-
-    faiss::IndexFlatL2 cpuIndex(dim);
-
-    faiss::gpu::GpuIndexFlatConfig config;
-    config.device = device;
-    config.use_raft = use_raft;
-    faiss::gpu::GpuIndexFlatL2 gpuIndex(&res, dim, config);
-
-    cpuIndex.add(nb, xb.data());
-    gpuIndex.add(nb, xb.data());
-
-    std::vector<float> refDistance(nq * k, 0);
-    std::vector<faiss::idx_t> refIndices(nq * k, -1);
-    std::vector<float> refReconstruct(nq * k * dim, 0);
-    cpuIndex.search_and_reconstruct(
-            nq,
-            xq.data(),
-            k,
-            refDistance.data(),
-            refIndices.data(),
-            refReconstruct.data());
-
-    std::vector<float> testDistance(nq * k, 0);
-    std::vector<faiss::idx_t> testIndices(nq * k, -1);
-    std::vector<float> testReconstruct(nq * k * dim, 0);
-    gpuIndex.search_and_reconstruct(
-            nq,
-            xq.data(),
-            k,
-            testDistance.data(),
-            testIndices.data(),
-            testReconstruct.data());
-
-    // This handles the search results
-    faiss::gpu::compareLists(
-            refDistance.data(),
-            refIndices.data(),
-            testDistance.data(),
-            testIndices.data(),
-            nq,
-            k,
-            "SearchAndReconstruct",
-            true,
-            false,
-            true,
-            kF32MaxRelErr,
-            0.1f,
-            0.015f);
-
-    // As the search results may be slightly different (though compareLists
-    // above will ensure a decent number of matches), reconstruction should be
-    // the same for the vectors that do match
-    for (int i = 0; i < nq; ++i) {
-        std::unordered_map<faiss::idx_t, int> refLocation;
-
-        for (int j = 0; j < k; ++j) {
-            refLocation.insert(std::make_pair(refIndices[i * k + j], j));
-        }
-
-        for (int j = 0; j < k; ++j) {
-            auto idx = testIndices[i * k + j];
-            auto it = refLocation.find(idx);
-            if (it != refLocation.end()) {
-                for (int d = 0; d < dim; ++d) {
-                    EXPECT_EQ(
-                            refReconstruct[(i * k + it->second) * dim + d],
-                            testReconstruct[(i * k + j) * dim + d]);
-                }
-            }
-        }
-    }
-}
-TEST(TestGpuIndexFlat, SearchAndReconstruct) {
-    testSearchAndReconstruct(false);
-}
-
-#if defined USE_NVIDIA_RAFT
-TEST(TestRaftGpuIndexFlat, SearchAndReconstruct) {
-    testSearchAndReconstruct(true);
-}
-#endif
+#include "../utils/binary_io.hpp"
+#include "../utils/resize.hpp"
+#include "../utils/stimer.hpp"
+#include "../utils/get_recall.hpp"
+// #include "distance.hpp"
+
+using data_t = float;
+using id_t = uint32_t;
+using namespace std;
+
+std::string prefix = "/home/zhengweiguo/liuchengjun/";
 
 int main(int argc, char** argv) {
-    testing::InitGoogleTest(&argc, argv);
+    std::vector<data_t> base_vectors, queries_vectors, train_vectors;
+    std::vector<id_t> query_gt, train_gt;
+    std::string dataset = "gist1m";
+    // std::string dataset = "imagenet";
+    // std::string dataset = "wikipedia";
+    std::string base_vectors_path;
+    std::string test_vectors_path;
+    std::string test_gt_path;
+    std::string train_vectors_path;
+    std::string train_gt_path;
+    if (dataset == "imagenet" || dataset == "wikipedia") {
+        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
+        test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs";
+        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.new";
+    } else {
+        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
+        test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.new";
+        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.new";
+    }
 
-    // just run with a fixed test seed
-    faiss::gpu::setTestSeed(100);
+    auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
+    auto [nq, d1] = utils::LoadFromFile(queries_vectors, test_vectors_path);
+    auto [nt, dt] = utils::LoadFromFile(train_vectors, train_vectors_path);
+    auto [nbg, dbg] = utils::LoadFromFile(query_gt, test_gt_path);
+    auto [ntg, dtg] = utils::LoadFromFile(train_gt, train_gt_path);
 
-    return RUN_ALL_TESTS();
+    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), nq, d1);
+    auto nest_train_vectors = utils::Nest(std::move(train_vectors), nt, dt);
+
+    base_vectors.resize(nb * d0);
+    nb = base_vectors.size() / d0;
+
+    nest_test_vectors.resize(nq);
+    nq = nest_test_vectors.size();
+
+    nest_train_vectors.resize(nt);
+    nt = nest_train_vectors.size();
+
+    cout << "Load Data Done!" << endl;
+
+    cout << "Base Vectors: " << nb << endl;
+    cout << "Queries Vectors: " << nq << endl;
+    cout << "Train Vectors: " << nt << endl;
+
+    cout << "Dimension base_vector: " << d0 << endl;
+    cout << "Dimension query_vector: " << d1 << endl;
+    cout << "Dimension train_vector: " << dt << endl;
+
+    size_t k = 100;
+    size_t num_threads_ = 24;
+
+    utils::STimer query_timer, train_timer;
+    std::cout << "dataset: " << dataset << std::endl;
+
+    // std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
+    std::vector<faiss::idx_t> knn(nq * k);
+    std::vector<std::vector<id_t>> knn_i32(nq, std::vector<id_t>(k));
+    std::vector<data_t> dist(nq * k);
+
+    int device = 1;
+    faiss::gpu::StandardGpuResources res;
+    faiss::gpu::GpuIndexFlatConfig config;
+    config.device = device;
+    faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_L2, config);
+    // faiss::gpu::GpuIndexFlatIP gpuIndex(&res, d0, config);
+    gpuIndex.add(nb, base_vectors.data());
+
+    query_timer.Reset();
+    query_timer.Start();
+
+    gpuIndex.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
+
+    query_timer.Stop();
+    std::cout << "[Query GT] Query search time: " << query_timer.GetTime() << std::endl;
+    cout << "Query GT write to file: " << test_gt_path << endl;
+    for (int i = 0; i < nq; ++i) {
+        for (int j = 0; j < k; ++j) {
+            knn_i32[i][j] = knn[i * k + j];
+        }
+    }
+
+    std::cout << "[Naive] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn_i32) << std::endl;
+    // utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, test_gt_path);
+
+//     knn.resize(nt, std::vector<id_t>(k));
+//     query_timer.Reset();
+//     query_timer.Start();
+// #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
+//     for (size_t qid = 0; qid < nt; ++qid) {
+//         const auto& q = nest_train_vectors[qid];
+//         std::vector<std::pair<data_t, id_t>> dists_candidates(nb);
+//         std::priority_queue<std::pair<data_t, id_t>> top_candidates;
+
+//         for (size_t i = 0; i < nb; ++i) {
+//             dists_candidates[i].first = distance(q.data(), base_vectors.data() + i * d0, d0);
+//             dists_candidates[i].second = i;
+//             top_candidates.emplace(dists_candidates[i]);
+//             if (top_candidates.size() > k) {
+//                 top_candidates.pop();
+//             }
+//         }
+
+//         // partial_sort(dists_candidates.begin(), dists_candidates.begin() + k, dists_candidates.end(), [](auto &l, auto &r) {
+//         // // sort(dists_candidates.begin(), dists_candidates.end(), [](auto &l, auto &r) {
+//         //     if (l.first != r.first) return l.first < r.first;
+//         //     return l.second < r.second;
+//         // });
+        
+//         // for (int i = 0; i < k; ++i) {
+//         //     knn[qid][i] = dists_candidates[i].second;
+//         // }
+//         knn[qid].clear();
+//         while (top_candidates.size()) {
+//             knn[qid].emplace_back(top_candidates.top().second);
+//             top_candidates.pop();
+//         }
+//         if (rand() % 100 < 1) {
+//             // cout << knn[qid].size() << endl;
+//             cout << qid << endl;
+//         }
+//     }
+//     query_timer.Stop();
+//     std::cout << "[Train GT] Train search time: " << query_timer.GetTime() << std::endl;
+//     cout << train_gt_path + ".new" << endl;
+//     utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, train_gt_path + ".new");
+  return 0;
 }
+// g++ test_gpu.cpp -std=c++17 -I ../include/ -Lbuild/ -Ofast -march=native -mtune=native -lrt -fopenmp -o test_gpu && ./test_gpu

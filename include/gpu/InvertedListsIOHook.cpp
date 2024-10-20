@@ -13,10 +13,6 @@
 
 #include <BlockInvertedLists.h>
 
-#ifndef _MSC_VER
-#include <OnDiskInvertedLists.h>
-#endif // !_MSC_VER
-
 namespace faiss {
 
 /**********************************************************
@@ -33,9 +29,6 @@ namespace {
 /// std::vector that deletes its contents
 struct IOHookTable : std::vector<InvertedListsIOHook*> {
     IOHookTable() {
-#ifndef _MSC_VER
-        push_back(new OnDiskInvertedListsIOHook());
-#endif
         push_back(new BlockInvertedListsIOHook());
     }
 

@@ -24,7 +24,7 @@
 #endif
 
 #if defined(__AVX512F__)
-#include <transpose-avx512-inl.h>
+// #include <transpose-avx512-inl.h>
 #elif defined(__AVX2__)
 #include <transpose/transpose-avx2-inl.h>
 #endif

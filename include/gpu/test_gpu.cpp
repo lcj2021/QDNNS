@@ -22,8 +22,8 @@ std::string prefix = "/home/zhengweiguo/liuchengjun/";
 int main(int argc, char** argv) {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
-    // std::string dataset = "gist1m";
-    std::string dataset = "imagenet";
+    std::string dataset = "gist1m";
+    // std::string dataset = "imagenet";
     // std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
@@ -87,8 +87,8 @@ int main(int argc, char** argv) {
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
-    // faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_L2, config);
-    faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_INNER_PRODUCT, config);
+    faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_L2, config);
+    // faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_INNER_PRODUCT, config);
     gpuIndex.add(nb, base_vectors.data());
 
     query_timer.Reset();

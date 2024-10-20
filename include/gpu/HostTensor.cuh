@@ -91,4 +91,4 @@ class HostTensor : public Tensor<T, Dim, InnerContig, IndexT, PtrTraits> {
 } // namespace gpu
 } // namespace faiss
 
-#include <HostTensor-inl.cuh>
+// #include <HostTensor-inl.cuh>

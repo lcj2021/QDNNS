@@ -9,7 +9,6 @@
 
 #include <Index.h>
 #include <FaissAssert.h>
-// #include <InvertedLists.h>
 #include <gtest/gtest.h>
 #include <cstring>
 #include <initializer_list>

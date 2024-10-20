@@ -7,13 +7,11 @@
 
 #pragma once
 
-#include <index_io.h>
 #include <InvertedLists.h>
 #include <InvertedListsIOHook.h>
 
 namespace faiss {
 
-// struct CodePacker;
 struct IDSelector;
 
 /** Inverted Lists that are organized by blocks.
@@ -33,14 +31,9 @@ struct BlockInvertedLists : InvertedLists {
     size_t n_per_block = 0; // nb of vectors stored per block
     size_t block_size = 0;  // nb bytes per block
 
-    // required to interpret the content of the blocks (owned by this)
-    // const CodePacker* packer = nullptr;
-
-    // std::vector<AlignedTable<uint8_t>> codes;
     std::vector<std::vector<idx_t>> ids;
 
     BlockInvertedLists(size_t nlist, size_t vec_per_block, size_t block_size);
-    // BlockInvertedLists(size_t nlist, const CodePacker* packer);
 
     BlockInvertedLists();
 

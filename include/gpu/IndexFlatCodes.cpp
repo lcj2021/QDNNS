@@ -8,7 +8,6 @@
 #include <IndexFlatCodes.h>
 
 #include <AuxIndexStructures.h>
-// #include <CodePacker.h>
 #include <DistanceComputer.h>
 #include <FaissAssert.h>
 #include <IDSelector.h>
@@ -95,10 +94,6 @@ void IndexFlatCodes::merge_from(Index& otherIndex, idx_t add_id) {
     ntotal += other->ntotal;
     other->reset();
 }
-
-// CodePacker* IndexFlatCodes::get_CodePacker() const {
-//     return new CodePackerFlat(code_size);
-// }
 
 void IndexFlatCodes::permute_entries(const idx_t* perm) {
     std::vector<uint8_t> new_codes(codes.size());

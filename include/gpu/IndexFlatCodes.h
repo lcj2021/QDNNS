@@ -13,8 +13,6 @@
 
 namespace faiss {
 
-struct CodePacker;
-
 /** Index that encodes all vectors as fixed-size codes (size code_size). Storage
  * is in the codes vector */
 struct IndexFlatCodes : Index {
@@ -68,9 +66,6 @@ struct IndexFlatCodes : Index {
             float radius,
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const override;
-
-    // // returns a new instance of a CodePacker
-    // CodePacker* get_CodePacker() const;
 
     void check_compatible_for_merge(const Index& otherIndex) const override;
 

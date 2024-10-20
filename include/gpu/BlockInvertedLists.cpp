@@ -8,7 +8,6 @@
 #include <BlockInvertedLists.h>
 #include <cstring>
 #include <cassert>
-// #include <CodePacker.h>
 #include <FaissAssert.h>
 #include <IDSelector.h>
 
@@ -27,15 +26,6 @@ BlockInvertedLists::BlockInvertedLists(
     ids.resize(nlist);
     // codes.resize(nlist);
 }
-
-// BlockInvertedLists::BlockInvertedLists(size_t nlist, const CodePacker* packer)
-//         : InvertedLists(nlist, InvertedLists::INVALID_CODE_SIZE),
-//           n_per_block(packer->nvec),
-//           block_size(packer->block_size),
-//           packer(packer) {
-//     ids.resize(nlist);
-//     // codes.resize(nlist);
-// }
 
 BlockInvertedLists::BlockInvertedLists()
         : InvertedLists(0, InvertedLists::INVALID_CODE_SIZE) {}

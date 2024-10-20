@@ -15,7 +15,6 @@
 #include <FaissException.h>
 #include <IDSelector.h>
 #include <Heap.h>
-#include <partitioning.h>
 
 #include <algorithm>
 #include <iostream>
@@ -321,7 +320,7 @@ struct ReservoirTopN : ResultHandler<C> {
         bool updated_threshold = false;
         if (C::cmp(threshold, val)) {
             if (i == capacity) {
-                shrink_fuzzy();
+                // shrink_fuzzy();
                 updated_threshold = true;
             }
             vals[i] = val;
@@ -335,19 +334,19 @@ struct ReservoirTopN : ResultHandler<C> {
         add_result(val, id);
     }
 
-    // reduce storage from capacity to anything
-    // between n and (capacity + n) / 2
-    void shrink_fuzzy() {
-        assert(i == capacity);
+    // // reduce storage from capacity to anything
+    // // between n and (capacity + n) / 2
+    // void shrink_fuzzy() {
+    //     assert(i == capacity);
 
-        threshold = partition_fuzzy<C>(
-                vals, ids, capacity, n, (capacity + n) / 2, &i);
-    }
+    //     threshold = partition_fuzzy<C>(
+    //             vals, ids, capacity, n, (capacity + n) / 2, &i);
+    // }
 
-    void shrink() {
-        threshold = partition<C>(vals, ids, i, n);
-        i = n;
-    }
+    // void shrink() {
+    //     threshold = partition<C>(vals, ids, i, n);
+    //     i = n;
+    // }
 
     void to_result(T* heap_dis, TI* heap_ids) const {
         for (int j = 0; j < std::min(i, n); j++) {

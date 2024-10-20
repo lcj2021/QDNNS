@@ -6,9 +6,6 @@
  */
 
 #include <IndexFlat.h>
-#include <IndexIVFFlat.h>
-#include <IndexIVFPQ.h>
-#include <IndexScalarQuantizer.h>
 #include <GpuIndex.h>
 #include <GpuResources.h>
 #include <IndexUtils.h>
@@ -522,10 +519,6 @@ bool isGpuIndexImplemented(faiss::Index* index) {
     } while (false)
 
     CHECK_INDEX(faiss::IndexFlat);
-    // FIXME: do we want recursive checking of the IVF quantizer?
-    CHECK_INDEX(faiss::IndexIVFFlat);
-    CHECK_INDEX(faiss::IndexIVFPQ);
-    CHECK_INDEX(faiss::IndexIVFScalarQuantizer);
 
     return false;
 }

@@ -14,7 +14,6 @@
 #include <typeinfo>
 #include <vector>
 
-#include <IndexIVF.h>
 #include <index_io.h>
 #include <InvertedListsIOHook.h>
 

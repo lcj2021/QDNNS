@@ -372,7 +372,6 @@ void bfKnn(GpuResourcesProvider* prov, const GpuDistanceParams& args) {
             if (args.vectorType == DistanceDataType::F32) {
         bfKnnConvert<float>(prov, args);
     } else if (args.vectorType == DistanceDataType::F16) {
-        bfKnnConvert<half>(prov, args);
     } else {
         FAISS_THROW_MSG("unknown vectorType");
     }

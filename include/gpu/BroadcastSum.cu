@@ -273,13 +273,6 @@ void runSumAlongColumns(
     runSumAlongColumns<float, float4>(input, output, stream);
 }
 
-void runSumAlongColumns(
-        Tensor<half, 1, true>& input,
-        Tensor<half, 2, true>& output,
-        cudaStream_t stream) {
-    runSumAlongColumns<half, half2>(input, output, stream);
-}
-
 template <typename T, typename TVec>
 void runAssignAlongColumns(
         Tensor<T, 1, true>& input,
@@ -328,13 +321,6 @@ void runAssignAlongColumns(
     runAssignAlongColumns<float, float4>(input, output, stream);
 }
 
-void runAssignAlongColumns(
-        Tensor<half, 1, true>& input,
-        Tensor<half, 2, true>& output,
-        cudaStream_t stream) {
-    runAssignAlongColumns<half, half2>(input, output, stream);
-}
-
 template <typename T>
 void runSumAlongRows(
         Tensor<T, 1, true>& input,
@@ -363,14 +349,6 @@ void runSumAlongRows(
         bool zeroClamp,
         cudaStream_t stream) {
     runSumAlongRows<float>(input, output, zeroClamp, stream);
-}
-
-void runSumAlongRows(
-        Tensor<half, 1, true>& input,
-        Tensor<half, 2, true>& output,
-        bool zeroClamp,
-        cudaStream_t stream) {
-    runSumAlongRows<half>(input, output, zeroClamp, stream);
 }
 
 } // namespace gpu

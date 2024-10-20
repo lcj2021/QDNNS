@@ -12,7 +12,7 @@
 #include <io_macros.h>
 
 #include <BlockInvertedLists.h>
-
+#include <iostream>
 namespace faiss {
 
 /**********************************************************
@@ -29,6 +29,7 @@ namespace {
 /// std::vector that deletes its contents
 struct IOHookTable : std::vector<InvertedListsIOHook*> {
     IOHookTable() {
+        std::cerr << "Registering InvertedListsIOHook" << std::endl;
         push_back(new BlockInvertedListsIOHook());
     }
 

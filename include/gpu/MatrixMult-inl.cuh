@@ -9,7 +9,6 @@
 
 #include <cublas_v2.h>
 #include <DeviceTensor.cuh>
-#include <Float16.cuh>
 #include <HostTensor.cuh>
 #include <Tensor.cuh>
 #include <limits>
@@ -26,20 +25,12 @@ struct GetCudaType<float> {
     static constexpr hipblasDatatype_t Type = HIPBLAS_R_32F;
 };
 
-template <>
-struct GetCudaType<half> {
-    static constexpr hipblasDatatype_t Type = HIPBLAS_R_16F;
-};
 #else
 template <>
 struct GetCudaType<float> {
     static constexpr cudaDataType_t Type = CUDA_R_32F;
 };
 
-template <>
-struct GetCudaType<half> {
-    static constexpr cudaDataType_t Type = CUDA_R_16F;
-};
 #endif
 
 template <typename AT, typename BT>

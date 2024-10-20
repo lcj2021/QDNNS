@@ -56,20 +56,8 @@ class FlatIndex {
     /// Returns a reference to our vectors currently in use
     Tensor<float, 2, true>& getVectorsFloat32Ref();
 
-    /// Returns a reference to our vectors currently in use (if useFloat16 mode)
-    Tensor<half, 2, true>& getVectorsFloat16Ref();
-
     virtual void query(
             Tensor<float, 2, true>& vecs,
-            int k,
-            faiss::MetricType metric,
-            float metricArg,
-            Tensor<float, 2, true>& outDistances,
-            Tensor<idx_t, 2, true>& outIndices,
-            bool exactDistance);
-
-    virtual void query(
-            Tensor<half, 2, true>& vecs,
             int k,
             faiss::MetricType metric,
             float metricArg,
@@ -120,9 +108,6 @@ class FlatIndex {
 
     /// Vectors currently in rawData32_
     DeviceTensor<float, 2, true> vectors_;
-
-    /// Vectors currently in rawData16_, float16 form
-    DeviceTensor<half, 2, true> vectorsHalf_;
 
     /// Precomputed L2 norms
     DeviceTensor<float, 1, true> norms_;

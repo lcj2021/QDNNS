@@ -15,7 +15,6 @@
 #include <FlatIndex.cuh>
 #include <ConversionOperators.cuh>
 #include <CopyUtils.cuh>
-#include <Float16.cuh>
 #include <limits>
 
 #if defined USE_NVIDIA_RAFT

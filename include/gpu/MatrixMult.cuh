@@ -9,7 +9,6 @@
 
 #include <cublas_v2.h>
 #include <DeviceTensor.cuh>
-#include <Float16.cuh>
 #include <HostTensor.cuh>
 #include <Tensor.cuh>
 

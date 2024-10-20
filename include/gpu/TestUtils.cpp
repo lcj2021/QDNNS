@@ -75,15 +75,6 @@ std::vector<unsigned char> randBinaryVecs(size_t num, size_t dim) {
     return v;
 }
 
-std::vector<float> roundToHalf(const std::vector<float>& v) {
-    auto out = std::vector<float>(v.size());
-    for (int i = 0; i < v.size(); ++i) {
-        out[i] = __half2float(__float2half(v[i]));
-    }
-
-    return out;
-}
-
 void compareIndices(
         const std::vector<float>& queryVecs,
         faiss::Index& refIndex,

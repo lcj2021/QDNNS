@@ -11,7 +11,6 @@
 #include <L2Norm.cuh>
 #include <ConversionOperators.cuh>
 #include <DeviceDefs.cuh>
-#include <Float16.cuh>
 #include <MathOperators.cuh>
 #include <PtxUtils.cuh>
 #include <Reductions.cuh>
@@ -265,15 +264,6 @@ void runL2Norm(
         bool normSquared,
         cudaStream_t stream) {
     runL2Norm<float, float4>(input, inputRowMajor, output, normSquared, stream);
-}
-
-void runL2Norm(
-        Tensor<half, 2, true>& input,
-        bool inputRowMajor,
-        Tensor<float, 1, true>& output,
-        bool normSquared,
-        cudaStream_t stream) {
-    runL2Norm<half, half2>(input, inputRowMajor, output, normSquared, stream);
 }
 
 } // namespace gpu

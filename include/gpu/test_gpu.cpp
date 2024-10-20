@@ -22,26 +22,29 @@ std::string prefix = "/home/zhengweiguo/liuchengjun/";
 int main(int argc, char** argv) {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
-    std::string dataset = "gist1m";
-    // std::string dataset = "imagenet";
+    // std::string dataset = "gist1m";
+    std::string dataset = "imagenet";
     // std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
     std::string train_vectors_path;
     std::string train_gt_path;
+    faiss::MetricType metric;
     if (dataset == "imagenet" || dataset == "wikipedia") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs";
+        metric = faiss::MetricType::METRIC_INNER_PRODUCT;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.new";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.new";
+        metric = faiss::MetricType::METRIC_L2;
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
@@ -87,7 +90,7 @@ int main(int argc, char** argv) {
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
-    faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_L2, config);
+    faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, metric, config);
     // faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_INNER_PRODUCT, config);
     gpuIndex.add(nb, base_vectors.data());
 

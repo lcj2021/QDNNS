@@ -96,15 +96,6 @@ void runCalcResidual(
     calcResidual<float>(vecs, centroids, vecToCentroid, residuals, stream);
 }
 
-void runCalcResidual(
-        Tensor<float, 2, true>& vecs,
-        Tensor<half, 2, true>& centroids,
-        Tensor<idx_t, 1, true>& vecToCentroid,
-        Tensor<float, 2, true>& residuals,
-        cudaStream_t stream) {
-    calcResidual<half>(vecs, centroids, vecToCentroid, residuals, stream);
-}
-
 template <typename T>
 __global__ void gatherReconstructByIds(
         Tensor<idx_t, 1, true> ids,
@@ -189,29 +180,12 @@ void runReconstruct(
 }
 
 void runReconstruct(
-        Tensor<idx_t, 1, true>& ids,
-        Tensor<half, 2, true>& vecs,
-        Tensor<float, 2, true>& out,
-        cudaStream_t stream) {
-    gatherReconstructByIds<half>(ids, vecs, out, stream);
-}
-
-void runReconstruct(
         idx_t start,
         idx_t num,
         Tensor<float, 2, true>& vecs,
         Tensor<float, 2, true>& out,
         cudaStream_t stream) {
     gatherReconstructByRange<float>(start, num, vecs, out, stream);
-}
-
-void runReconstruct(
-        idx_t start,
-        idx_t num,
-        Tensor<half, 2, true>& vecs,
-        Tensor<float, 2, true>& out,
-        cudaStream_t stream) {
-    gatherReconstructByRange<half>(start, num, vecs, out, stream);
 }
 
 } // namespace gpu

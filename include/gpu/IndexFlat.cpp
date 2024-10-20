@@ -14,7 +14,7 @@
 #include <Heap.h>
 #include <distances.h>
 #include <extra_distances.h>
-#include <prefetch.h>
+// #include <prefetch.h>
 #include <sorting.h>
 #include <utils.h>
 #include <cstring>
@@ -279,7 +279,7 @@ struct FlatL2WithNormsDis : FlatCodesDistanceComputer {
         const float* __restrict y =
                 reinterpret_cast<const float*>(codes + i * code_size);
 
-        prefetch_L2(l2norms + i);
+        // prefetch_L2(l2norms + i);
         const float dp0 = fvec_inner_product(q, y, d);
         return query_l2norm + l2norms[i] - 2 * dp0;
     }
@@ -290,8 +290,8 @@ struct FlatL2WithNormsDis : FlatCodesDistanceComputer {
         const float* __restrict yj =
                 reinterpret_cast<const float*>(codes + j * code_size);
 
-        prefetch_L2(l2norms + i);
-        prefetch_L2(l2norms + j);
+        // prefetch_L2(l2norms + i);
+        // prefetch_L2(l2norms + j);
         const float dp0 = fvec_inner_product(yi, yj, d);
         return l2norms[i] + l2norms[j] - 2 * dp0;
     }
@@ -337,10 +337,10 @@ struct FlatL2WithNormsDis : FlatCodesDistanceComputer {
         const float* __restrict y3 =
                 reinterpret_cast<const float*>(codes + idx3 * code_size);
 
-        prefetch_L2(l2norms + idx0);
-        prefetch_L2(l2norms + idx1);
-        prefetch_L2(l2norms + idx2);
-        prefetch_L2(l2norms + idx3);
+        // prefetch_L2(l2norms + idx0);
+        // prefetch_L2(l2norms + idx1);
+        // prefetch_L2(l2norms + idx2);
+        // prefetch_L2(l2norms + idx3);
 
         float dp0 = 0;
         float dp1 = 0;

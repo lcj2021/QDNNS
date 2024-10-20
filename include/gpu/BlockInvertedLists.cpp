@@ -8,7 +8,7 @@
 #include <BlockInvertedLists.h>
 #include <cstring>
 #include <cassert>
-#include <CodePacker.h>
+// #include <CodePacker.h>
 #include <FaissAssert.h>
 #include <IDSelector.h>
 
@@ -28,14 +28,14 @@ BlockInvertedLists::BlockInvertedLists(
     // codes.resize(nlist);
 }
 
-BlockInvertedLists::BlockInvertedLists(size_t nlist, const CodePacker* packer)
-        : InvertedLists(nlist, InvertedLists::INVALID_CODE_SIZE),
-          n_per_block(packer->nvec),
-          block_size(packer->block_size),
-          packer(packer) {
-    ids.resize(nlist);
-    // codes.resize(nlist);
-}
+// BlockInvertedLists::BlockInvertedLists(size_t nlist, const CodePacker* packer)
+//         : InvertedLists(nlist, InvertedLists::INVALID_CODE_SIZE),
+//           n_per_block(packer->nvec),
+//           block_size(packer->block_size),
+//           packer(packer) {
+//     ids.resize(nlist);
+//     // codes.resize(nlist);
+// }
 
 BlockInvertedLists::BlockInvertedLists()
         : InvertedLists(0, InvertedLists::INVALID_CODE_SIZE) {}
@@ -60,12 +60,12 @@ size_t BlockInvertedLists::add_entries(
         //        code,
         //        n_block * block_size);
     } else {
-        FAISS_THROW_IF_NOT_MSG(packer, "missing code packer");
-        std::vector<uint8_t> buffer(packer->code_size);
-        for (size_t i = 0; i < n_entry; i++) {
-            packer->unpack_1(code, i, buffer.data());
+        // FAISS_THROW_IF_NOT_MSG(packer, "missing code packer");
+        // std::vector<uint8_t> buffer(packer->code_size);
+        // for (size_t i = 0; i < n_entry; i++) {
+        //     packer->unpack_1(code, i, buffer.data());
             // packer->pack_1(buffer.data(), i + o, codes[list_no].data());
-        }
+        // }
     }
     return o;
 }
@@ -85,7 +85,7 @@ size_t BlockInvertedLists::remove_ids(const IDSelector& sel) {
     idx_t nremove = 0;
 #pragma omp parallel for
     for (idx_t i = 0; i < nlist; i++) {
-        std::vector<uint8_t> buffer(packer->code_size);
+        // std::vector<uint8_t> buffer(packer->code_size);
         idx_t l = ids[i].size(), j = 0;
         while (j < l) {
             if (sel.is_member(ids[i][j])) {
@@ -133,7 +133,7 @@ void BlockInvertedLists::update_entries(
 }
 
 BlockInvertedLists::~BlockInvertedLists() {
-    delete packer;
+    // delete packer;
 }
 
 /**************************************************

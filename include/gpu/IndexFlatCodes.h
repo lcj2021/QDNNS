@@ -69,8 +69,8 @@ struct IndexFlatCodes : Index {
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const override;
 
-    // returns a new instance of a CodePacker
-    CodePacker* get_CodePacker() const;
+    // // returns a new instance of a CodePacker
+    // CodePacker* get_CodePacker() const;
 
     void check_compatible_for_merge(const Index& otherIndex) const override;
 

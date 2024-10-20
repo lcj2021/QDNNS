@@ -21,7 +21,6 @@
 
 #include <IndexFlat.h>
 #include <FaissAssert.h>
-#include <kmeans1d.h>
 #include <distances.h>
 #include <random.h>
 #include <utils.h>
@@ -594,10 +593,10 @@ void Clustering1D::train_exact(idx_t n, const float* x) {
     }
 
     centroids.resize(k);
-    double uf = kmeans1d(xt, n, k, centroids.data());
+    // double uf = kmeans1d(xt, n, k, centroids.data());
 
-    ClusteringIterationStats stats = {0.0, 0.0, 0.0, uf, 0};
-    iteration_stats.push_back(stats);
+    // ClusteringIterationStats stats = {0.0, 0.0, 0.0, uf, 0};
+    // iteration_stats.push_back(stats);
 }
 
 float kmeans_clustering(

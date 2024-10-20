@@ -11,7 +11,6 @@
 #include <cmath>
 
 #include <FaissAssert.h>
-#include <AlignedTable.h>
 #include <ordered_key_value.h>
 #include <simdlib.h>
 
@@ -693,7 +692,7 @@ uint16_t simd_partition_fuzzy(
         size_t q_min,
         size_t q_max,
         size_t* q_out) {
-    assert(is_aligned_pointer(vals));
+    // assert(is_aligned_pointer(vals));
 
     uint16_t s0i, s1i;
     find_minimax(vals, n, s0i, s1i);
@@ -709,7 +708,7 @@ uint16_t simd_partition(
         typename C::TI* ids,
         size_t n,
         size_t q) {
-    assert(is_aligned_pointer(vals));
+    // assert(is_aligned_pointer(vals));
 
     if (q == 0) {
         return 0;

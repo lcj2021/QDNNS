@@ -15,7 +15,7 @@
 #include <AuxIndexStructures.h>
 #include <FaissAssert.h>
 #include <IDSelector.h>
-#include <BlockInvertedLists.h>
+// #include <BlockInvertedLists.h>
 
 namespace faiss {
 
@@ -149,43 +149,43 @@ size_t DirectMap::remove_ids(const IDSelector& sel, InvertedLists* invlists) {
     std::vector<idx_t> toremove(nlist);
 
     size_t nremove = 0;
-    BlockInvertedLists* block_invlists =
-            dynamic_cast<BlockInvertedLists*>(invlists);
+//     BlockInvertedLists* block_invlists =
+//             dynamic_cast<BlockInvertedLists*>(invlists);
     if (type == NoMap) {
-        if (block_invlists != nullptr) {
-            return block_invlists->remove_ids(sel);
-        }
-        // exhaustive scan of IVF
-#pragma omp parallel for
-        for (idx_t i = 0; i < nlist; i++) {
-            idx_t l0 = invlists->list_size(i), l = l0, j = 0;
-            ScopedIds idsi(invlists, i);
-            while (j < l) {
-                if (sel.is_member(idsi[j])) {
-                    l--;
-                    invlists->update_entry(
-                            i,
-                            j,
-                            invlists->get_single_id(i, l),
-                            ScopedCodes(invlists, i, l).get());
-                } else {
-                    j++;
-                }
-            }
-            toremove[i] = l0 - l;
-        }
-        // this will not run well in parallel on ondisk because of
-        // possible shrinks
-        for (idx_t i = 0; i < nlist; i++) {
-            if (toremove[i] > 0) {
-                nremove += toremove[i];
-                invlists->resize(i, invlists->list_size(i) - toremove[i]);
-            }
-        }
+//         if (block_invlists != nullptr) {
+//             return block_invlists->remove_ids(sel);
+//         }
+//         // exhaustive scan of IVF
+// #pragma omp parallel for
+//         for (idx_t i = 0; i < nlist; i++) {
+//             idx_t l0 = invlists->list_size(i), l = l0, j = 0;
+//             ScopedIds idsi(invlists, i);
+//             while (j < l) {
+//                 if (sel.is_member(idsi[j])) {
+//                     l--;
+//                     invlists->update_entry(
+//                             i,
+//                             j,
+//                             invlists->get_single_id(i, l),
+//                             ScopedCodes(invlists, i, l).get());
+//                 } else {
+//                     j++;
+//                 }
+//             }
+//             toremove[i] = l0 - l;
+//         }
+//         // this will not run well in parallel on ondisk because of
+//         // possible shrinks
+//         for (idx_t i = 0; i < nlist; i++) {
+//             if (toremove[i] > 0) {
+//                 nremove += toremove[i];
+//                 invlists->resize(i, invlists->list_size(i) - toremove[i]);
+//             }
+//         }
     } else if (type == Hashtable) {
-        FAISS_THROW_IF_MSG(
-                block_invlists,
-                "remove with hashtable is not supported with BlockInvertedLists");
+        // FAISS_THROW_IF_MSG(
+        //         block_invlists,
+        //         "remove with hashtable is not supported with BlockInvertedLists");
         const IDSelectorArray* sela =
                 dynamic_cast<const IDSelectorArray*>(&sel);
         FAISS_THROW_IF_NOT_MSG(

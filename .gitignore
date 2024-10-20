@@ -33,6 +33,8 @@
 
 build/
 
+*.png
+
 # python files
 __pycache__/
 *.pyc

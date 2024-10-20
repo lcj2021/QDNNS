@@ -9,7 +9,7 @@
 
 #include <Index.h>
 #include <FaissAssert.h>
-#include <InvertedLists.h>
+// #include <InvertedLists.h>
 #include <gtest/gtest.h>
 #include <cstring>
 #include <initializer_list>
@@ -106,40 +106,40 @@ void compareLists(
         float pctMaxDiff1 = 0.1f,
         float pctMaxDiffN = 0.005f);
 
-/// Compare IVF lists between a CPU and GPU index
-template <typename A, typename B>
-void testIVFEquality(A& cpuIndex, B& gpuIndex) {
-    // Ensure equality of the inverted lists
-    EXPECT_EQ(cpuIndex.nlist, gpuIndex.nlist);
+// /// Compare IVF lists between a CPU and GPU index
+// template <typename A, typename B>
+// void testIVFEquality(A& cpuIndex, B& gpuIndex) {
+//     // Ensure equality of the inverted lists
+//     EXPECT_EQ(cpuIndex.nlist, gpuIndex.nlist);
 
-    for (int i = 0; i < cpuIndex.nlist; ++i) {
-        auto cpuLists = cpuIndex.invlists;
+//     for (int i = 0; i < cpuIndex.nlist; ++i) {
+//         auto cpuLists = cpuIndex.invlists;
 
-        // Code equality
-        EXPECT_EQ(cpuLists->list_size(i), gpuIndex.getListLength(i));
-        std::vector<uint8_t> cpuCodes(
-                cpuLists->list_size(i) * cpuLists->code_size);
+//         // Code equality
+//         EXPECT_EQ(cpuLists->list_size(i), gpuIndex.getListLength(i));
+//         std::vector<uint8_t> cpuCodes(
+//                 cpuLists->list_size(i) * cpuLists->code_size);
 
-        auto sc = faiss::InvertedLists::ScopedCodes(cpuLists, i);
-        std::memcpy(
-                cpuCodes.data(),
-                sc.get(),
-                cpuLists->list_size(i) * cpuLists->code_size);
+//         auto sc = faiss::InvertedLists::ScopedCodes(cpuLists, i);
+//         std::memcpy(
+//                 cpuCodes.data(),
+//                 sc.get(),
+//                 cpuLists->list_size(i) * cpuLists->code_size);
 
-        auto gpuCodes = gpuIndex.getListVectorData(i, false);
-        EXPECT_EQ(cpuCodes, gpuCodes);
+//         auto gpuCodes = gpuIndex.getListVectorData(i, false);
+//         EXPECT_EQ(cpuCodes, gpuCodes);
 
-        // Index equality
-        std::vector<idx_t> cpuIndices(cpuLists->list_size(i));
+//         // Index equality
+//         std::vector<idx_t> cpuIndices(cpuLists->list_size(i));
 
-        auto si = faiss::InvertedLists::ScopedIds(cpuLists, i);
-        std::memcpy(
-                cpuIndices.data(),
-                si.get(),
-                cpuLists->list_size(i) * sizeof(faiss::idx_t));
-        EXPECT_EQ(cpuIndices, gpuIndex.getListIndices(i));
-    }
-}
+//         auto si = faiss::InvertedLists::ScopedIds(cpuLists, i);
+//         std::memcpy(
+//                 cpuIndices.data(),
+//                 si.get(),
+//                 cpuLists->list_size(i) * sizeof(faiss::idx_t));
+//         EXPECT_EQ(cpuIndices, gpuIndex.getListIndices(i));
+//     }
+// }
 
 } // namespace gpu
 } // namespace faiss

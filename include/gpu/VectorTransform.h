@@ -245,8 +245,6 @@ struct OPQMatrix : LinearTransform {
 
     /// if d2 != -1, output vectors of this dimension
     explicit OPQMatrix(int d = 0, int M = 1, int d2 = -1);
-
-    void train(idx_t n, const float* x) override;
 };
 
 /** remap dimensions for intput vectors, possibly inserting 0s

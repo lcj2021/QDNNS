@@ -340,7 +340,7 @@ void GpuIndexFlat::compute_residual_n(
             resources_.get(), config_.device, residuals, stream, {n, this->d});
 
     FAISS_ASSERT(data_);
-    data_->computeResidual(vecsDevice, idsDevice, residualDevice);
+    // data_->computeResidual(vecsDevice, idsDevice, residualDevice);
 
     // If the output is on the host, copy back if needed
     fromDevice<float, 2>(residualDevice, residuals, stream);

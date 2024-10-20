@@ -24,7 +24,6 @@
 #include <Distance.cuh>
 #include <FlatIndex.cuh>
 #include <L2Norm.cuh>
-#include <VectorResidual.cuh>
 #include <ConversionOperators.cuh>
 #include <CopyUtils.cuh>
 #include <Transpose.cuh>
@@ -124,21 +123,6 @@ void FlatIndex::query(
     }
 }
 
-void FlatIndex::computeResidual(
-        Tensor<float, 2, true>& vecs,
-        Tensor<idx_t, 1, true>& ids,
-        Tensor<float, 2, true>& residuals) {
-    if (useFloat16_) {
-    } else {
-        runCalcResidual(
-                vecs,
-                getVectorsFloat32Ref(),
-                ids,
-                residuals,
-                resources_->getDefaultStreamCurrentDevice());
-    }
-}
-
 void FlatIndex::reconstruct(
         idx_t start,
         idx_t num,
@@ -147,11 +131,6 @@ void FlatIndex::reconstruct(
 
     FAISS_ASSERT(vecs.getSize(0) == num);
     FAISS_ASSERT(vecs.getSize(1) == dim_);
-
-    if (useFloat16_) {
-    } else {
-        runReconstruct(start, num, getVectorsFloat32Ref(), vecs, stream);
-    }
 }
 
 void FlatIndex::reconstruct(
@@ -161,11 +140,6 @@ void FlatIndex::reconstruct(
 
     FAISS_ASSERT(vecs.getSize(0) == ids.getSize(0));
     FAISS_ASSERT(vecs.getSize(1) == dim_);
-
-    if (useFloat16_) {
-    } else {
-        runReconstruct(ids, getVectorsFloat32Ref(), vecs, stream);
-    }
 }
 
 void FlatIndex::add(const float* data, idx_t numVecs, cudaStream_t stream) {

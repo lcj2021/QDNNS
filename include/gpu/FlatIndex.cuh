@@ -65,11 +65,11 @@ class FlatIndex {
             Tensor<idx_t, 2, true>& outIndices,
             bool exactDistance);
 
-    /// Compute residual for set of vectors
-    void computeResidual(
-            Tensor<float, 2, true>& vecs,
-            Tensor<idx_t, 1, true>& ids,
-            Tensor<float, 2, true>& residuals);
+    // /// Compute residual for set of vectors
+    // void computeResidual(
+    //         Tensor<float, 2, true>& vecs,
+    //         Tensor<idx_t, 1, true>& ids,
+    //         Tensor<float, 2, true>& residuals);
 
     /// Gather vectors given the set of IDs
     void reconstruct(Tensor<idx_t, 1, true>& ids, Tensor<float, 2, true>& vecs);

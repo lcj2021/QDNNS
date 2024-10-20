@@ -43,20 +43,6 @@ size_t BlockInvertedLists::add_entries(
     ids[list_no].resize(o + n_entry);
     memcpy(&ids[list_no][o], ids_in, sizeof(ids_in[0]) * n_entry);
     size_t n_block = (o + n_entry + n_per_block - 1) / n_per_block;
-    // codes[list_no].resize(n_block * block_size);
-    if (o % block_size == 0) {
-        // // copy whole blocks
-        // memcpy(&codes[list_no][o * packer->code_size],
-        //        code,
-        //        n_block * block_size);
-    } else {
-        // FAISS_THROW_IF_NOT_MSG(packer, "missing code packer");
-        // std::vector<uint8_t> buffer(packer->code_size);
-        // for (size_t i = 0; i < n_entry; i++) {
-        //     packer->unpack_1(code, i, buffer.data());
-            // packer->pack_1(buffer.data(), i + o, codes[list_no].data());
-        // }
-    }
     return o;
 }
 
@@ -101,16 +87,8 @@ const idx_t* BlockInvertedLists::get_ids(size_t list_no) const {
 
 void BlockInvertedLists::resize(size_t list_no, size_t new_size) {
     ids[list_no].resize(new_size);
-    // size_t prev_nbytes = codes[list_no].size();
     size_t n_block = (new_size + n_per_block - 1) / n_per_block;
     size_t new_nbytes = n_block * block_size;
-    // codes[list_no].resize(new_nbytes);
-    // if (prev_nbytes < new_nbytes) {
-    //     // set new elements to 0
-    //     memset(codes[list_no].data() + prev_nbytes,
-    //            0,
-    //            new_nbytes - prev_nbytes);
-    // }
 }
 
 void BlockInvertedLists::update_entries(
@@ -159,11 +137,9 @@ InvertedLists* BlockInvertedListsIOHook::read(IOReader* f, int /* io_flags */)
     READ1(il->block_size);
 
     il->ids.resize(il->nlist);
-    // il->codes.resize(il->nlist);
 
     for (size_t i = 0; i < il->nlist; i++) {
         READVECTOR(il->ids[i]);
-        // READVECTOR(il->codes[i]);
     }
 
     return il;

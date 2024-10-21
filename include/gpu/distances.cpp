@@ -24,9 +24,6 @@
 
 #include <AuxIndexStructures.h>
 #include <FaissAssert.h>
-#include <IDSelector.h>
-
-// #include <distances_fused.h>
 
 #ifndef FINTEGER
 #define FINTEGER long
@@ -730,37 +727,6 @@ int distance_compute_blas_threshold = 20;
 int distance_compute_blas_query_bs = 4096;
 int distance_compute_blas_database_bs = 1024;
 int distance_compute_min_k_reservoir = 100;
-
-void knn_inner_product(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        size_t k,
-        float* vals,
-        int64_t* ids,
-        const IDSelector* sel) {
-    int64_t imin = 0;
-    if (auto selr = dynamic_cast<const IDSelectorRange*>(sel)) {
-        imin = std::max(selr->imin, int64_t(0));
-        int64_t imax = std::min(selr->imax, int64_t(ny));
-        ny = imax - imin;
-        y += d * imin;
-        sel = nullptr;
-    }
-    if (auto sela = dynamic_cast<const IDSelectorArray*>(sel)) {
-        return;
-    }
-
-    if (imin != 0) {
-        for (size_t i = 0; i < nx * k; i++) {
-            if (ids[i] >= 0) {
-                ids[i] += imin;
-            }
-        }
-    }
-}
 
 /***************************************************************************
  * Range search

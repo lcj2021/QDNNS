@@ -8,7 +8,6 @@
 #include <InvertedListsIOHook.h>
 
 #include <FaissAssert.h>
-#include <io_macros.h>
 
 #include <BlockInvertedLists.h>
 #include <iostream>

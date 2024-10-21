@@ -9,9 +9,6 @@
 #include <cstring>
 #include <cassert>
 #include <FaissAssert.h>
-#include <IDSelector.h>
-
-#include <io_macros.h>
 
 namespace faiss {
 
@@ -55,29 +52,6 @@ const uint8_t* BlockInvertedLists::get_codes(size_t list_no) const {
     return 0;
 }
 
-size_t BlockInvertedLists::remove_ids(const IDSelector& sel) {
-    idx_t nremove = 0;
-#pragma omp parallel for
-    for (idx_t i = 0; i < nlist; i++) {
-        // std::vector<uint8_t> buffer(packer->code_size);
-        idx_t l = ids[i].size(), j = 0;
-        while (j < l) {
-            if (sel.is_member(ids[i][j])) {
-                l--;
-                ids[i][j] = ids[i][l];
-                // packer->unpack_1(codes[i].data(), l, buffer.data());
-                // packer->pack_1(buffer.data(), j, codes[i].data());
-            } else {
-                j++;
-            }
-        }
-        resize(i, l);
-        nremove += ids[i].size() - l;
-    }
-
-    return nremove;
-}
-
 const idx_t* BlockInvertedLists::get_ids(size_t list_no) const {
     assert(list_no < nlist);
     return ids[list_no].data();
@@ -108,39 +82,5 @@ BlockInvertedLists::~BlockInvertedLists() {
 
 BlockInvertedListsIOHook::BlockInvertedListsIOHook()
         : InvertedListsIOHook("ilbl", typeid(BlockInvertedLists).name()) {}
-
-// void BlockInvertedListsIOHook::write(const InvertedLists* ils_in, IOWriter* f)
-//         const {
-//     uint32_t h = fourcc("ilbl");
-//     WRITE1(h);
-//     const BlockInvertedLists* il =
-//             dynamic_cast<const BlockInvertedLists*>(ils_in);
-//     WRITE1(il->nlist);
-//     WRITE1(il->code_size);
-//     WRITE1(il->n_per_block);
-//     WRITE1(il->block_size);
-
-//     for (size_t i = 0; i < il->nlist; i++) {
-//         WRITEVECTOR(il->ids[i]);
-//         // WRITEVECTOR(il->codes[i]);
-//     }
-// }
-
-// InvertedLists* BlockInvertedListsIOHook::read(IOReader* f, int /* io_flags */)
-//         const {
-//     BlockInvertedLists* il = new BlockInvertedLists();
-//     READ1(il->nlist);
-//     READ1(il->code_size);
-//     READ1(il->n_per_block);
-//     READ1(il->block_size);
-
-//     il->ids.resize(il->nlist);
-
-//     for (size_t i = 0; i < il->nlist; i++) {
-//         READVECTOR(il->ids[i]);
-//     }
-
-//     return il;
-// }
 
 } // namespace faiss

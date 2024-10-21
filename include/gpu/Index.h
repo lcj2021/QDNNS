@@ -50,9 +50,7 @@
 
 namespace faiss {
 
-/// Forward declarations see impl/AuxIndexStructures.h, impl/IDSelector.h
 /// and impl/DistanceComputer.h
-struct IDSelector;
 struct RangeSearchResult;
 struct DistanceComputer;
 
@@ -63,7 +61,6 @@ struct DistanceComputer;
  */
 struct SearchParameters {
     /// if non-null, only these IDs will be considered during search.
-    IDSelector* sel = nullptr;
     /// make sure we can dynamic_cast this
     virtual ~SearchParameters() {}
 };
@@ -179,11 +176,6 @@ struct Index {
 
     /// removes all elements from the database.
     virtual void reset() = 0;
-
-    /** removes IDs from the index. Not supported by all
-     * indexes. Returns the number of elements removed.
-     */
-    virtual size_t remove_ids(const IDSelector& sel);
 
     /** Reconstruct a stored vector (or an approximation if lossy coding)
      *

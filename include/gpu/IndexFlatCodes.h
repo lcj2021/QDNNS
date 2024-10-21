@@ -36,11 +36,6 @@ struct IndexFlatCodes : Index {
 
     size_t sa_code_size() const override;
 
-    /** remove some ids. NB that because of the structure of the
-     * index, the semantics of this operation are
-     * different from the usual ones: the new ids are shifted */
-    size_t remove_ids(const IDSelector& sel) override;
-
     /** a FlatCodesDistanceComputer offers a distance_to_code method
      *
      * The default implementation explicitly decodes the vector with sa_decode.

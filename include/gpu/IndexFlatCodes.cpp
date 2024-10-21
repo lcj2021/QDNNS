@@ -10,7 +10,6 @@
 #include <AuxIndexStructures.h>
 #include <DistanceComputer.h>
 #include <FaissAssert.h>
-#include <IDSelector.h>
 #include <extra_distances.h>
 
 namespace faiss {
@@ -37,28 +36,6 @@ void IndexFlatCodes::reset() {
 
 size_t IndexFlatCodes::sa_code_size() const {
     return code_size;
-}
-
-size_t IndexFlatCodes::remove_ids(const IDSelector& sel) {
-    idx_t j = 0;
-    for (idx_t i = 0; i < ntotal; i++) {
-        if (sel.is_member(i)) {
-            // should be removed
-        } else {
-            if (i > j) {
-                memmove(&codes[code_size * j],
-                        &codes[code_size * i],
-                        code_size);
-            }
-            j++;
-        }
-    }
-    size_t nremove = ntotal - j;
-    if (nremove > 0) {
-        ntotal = j;
-        codes.resize(ntotal * code_size);
-    }
-    return nremove;
 }
 
 void IndexFlatCodes::reconstruct_n(idx_t i0, idx_t ni, float* recons) const {

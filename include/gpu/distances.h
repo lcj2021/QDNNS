@@ -17,7 +17,6 @@
 
 namespace faiss {
 
-struct IDSelector;
 
 /*********************************************************
  * Optimized distance/norm/inner prod computations
@@ -292,25 +291,6 @@ FAISS_API extern int distance_compute_min_k_reservoir;
  * @param res  result heap structure, which also provides k. Sorted on output
  */
 
-/**  Return the k nearest neighbors of each of the nx vectors x among the ny
- *  vector y, for the inner product metric.
- *
- * @param x    query vectors, size nx * d
- * @param y    database vectors, size ny * d
- * @param distances  output distances, size nq * k
- * @param indexes    output vector ids, size nq * k
- */
-void knn_inner_product(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        size_t k,
-        float* distances,
-        int64_t* indexes,
-        const IDSelector* sel = nullptr);
-
 /** Return the k nearest neighbors of each of the nx vectors x among the ny
  *  vector y, for the L2 distance
  * @param x    query vectors, size nx * d
@@ -337,24 +317,6 @@ void knn_inner_product(
 
 /// Forward declaration, see AuxIndexStructures.h
 struct RangeSearchResult;
-
-/** Return the k nearest neighbors of each of the nx vectors x among the ny
- *  vector y, w.r.t to max inner product
- *
- * @param x      query vectors, size nx * d
- * @param y      database vectors, size ny * d
- * @param radius search radius around the x vectors
- * @param result result structure
- */
-void range_search_L2sqr(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        float radius,
-        RangeSearchResult* result,
-        const IDSelector* sel = nullptr);
 
 /***************************************************************************
  * PQ tables computations

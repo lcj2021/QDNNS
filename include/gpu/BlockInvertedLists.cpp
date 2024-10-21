@@ -11,7 +11,6 @@
 #include <FaissAssert.h>
 #include <IDSelector.h>
 
-#include <io.h>
 #include <io_macros.h>
 
 namespace faiss {
@@ -110,38 +109,38 @@ BlockInvertedLists::~BlockInvertedLists() {
 BlockInvertedListsIOHook::BlockInvertedListsIOHook()
         : InvertedListsIOHook("ilbl", typeid(BlockInvertedLists).name()) {}
 
-void BlockInvertedListsIOHook::write(const InvertedLists* ils_in, IOWriter* f)
-        const {
-    uint32_t h = fourcc("ilbl");
-    WRITE1(h);
-    const BlockInvertedLists* il =
-            dynamic_cast<const BlockInvertedLists*>(ils_in);
-    WRITE1(il->nlist);
-    WRITE1(il->code_size);
-    WRITE1(il->n_per_block);
-    WRITE1(il->block_size);
+// void BlockInvertedListsIOHook::write(const InvertedLists* ils_in, IOWriter* f)
+//         const {
+//     uint32_t h = fourcc("ilbl");
+//     WRITE1(h);
+//     const BlockInvertedLists* il =
+//             dynamic_cast<const BlockInvertedLists*>(ils_in);
+//     WRITE1(il->nlist);
+//     WRITE1(il->code_size);
+//     WRITE1(il->n_per_block);
+//     WRITE1(il->block_size);
 
-    for (size_t i = 0; i < il->nlist; i++) {
-        WRITEVECTOR(il->ids[i]);
-        // WRITEVECTOR(il->codes[i]);
-    }
-}
+//     for (size_t i = 0; i < il->nlist; i++) {
+//         WRITEVECTOR(il->ids[i]);
+//         // WRITEVECTOR(il->codes[i]);
+//     }
+// }
 
-InvertedLists* BlockInvertedListsIOHook::read(IOReader* f, int /* io_flags */)
-        const {
-    BlockInvertedLists* il = new BlockInvertedLists();
-    READ1(il->nlist);
-    READ1(il->code_size);
-    READ1(il->n_per_block);
-    READ1(il->block_size);
+// InvertedLists* BlockInvertedListsIOHook::read(IOReader* f, int /* io_flags */)
+//         const {
+//     BlockInvertedLists* il = new BlockInvertedLists();
+//     READ1(il->nlist);
+//     READ1(il->code_size);
+//     READ1(il->n_per_block);
+//     READ1(il->block_size);
 
-    il->ids.resize(il->nlist);
+//     il->ids.resize(il->nlist);
 
-    for (size_t i = 0; i < il->nlist; i++) {
-        READVECTOR(il->ids[i]);
-    }
+//     for (size_t i = 0; i < il->nlist; i++) {
+//         READVECTOR(il->ids[i]);
+//     }
 
-    return il;
-}
+//     return il;
+// }
 
 } // namespace faiss

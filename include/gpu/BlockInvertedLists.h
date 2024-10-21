@@ -68,8 +68,8 @@ struct BlockInvertedLists : InvertedLists {
 
 struct BlockInvertedListsIOHook : InvertedListsIOHook {
     BlockInvertedListsIOHook();
-    void write(const InvertedLists* ils, IOWriter* f) const override;
-    InvertedLists* read(IOReader* f, int io_flags) const override;
+    // void write(const InvertedLists* ils, IOWriter* f) const override;
+    // InvertedLists* read(IOReader* f, int io_flags) const override;
 };
 
 } // namespace faiss

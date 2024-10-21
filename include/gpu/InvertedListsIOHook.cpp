@@ -8,7 +8,6 @@
 #include <InvertedListsIOHook.h>
 
 #include <FaissAssert.h>
-#include <io.h>
 #include <io_macros.h>
 
 #include <BlockInvertedLists.h>
@@ -44,19 +43,6 @@ static IOHookTable InvertedListsIOHook_table;
 
 } // namespace
 
-InvertedListsIOHook* InvertedListsIOHook::lookup(int h) {
-    for (const auto& callback : InvertedListsIOHook_table) {
-        if (h == fourcc(callback->key)) {
-            return callback;
-        }
-    }
-    FAISS_THROW_FMT(
-            "read_InvertedLists: could not load ArrayInvertedLists as "
-            "%08x (\"%s\")",
-            h,
-            fourcc_inv_printable(h).c_str());
-}
-
 InvertedListsIOHook* InvertedListsIOHook::lookup_classname(
         const std::string& classname) {
     for (const auto& callback : InvertedListsIOHook_table) {
@@ -71,26 +57,6 @@ InvertedListsIOHook* InvertedListsIOHook::lookup_classname(
 
 void InvertedListsIOHook::add_callback(InvertedListsIOHook* cb) {
     InvertedListsIOHook_table.push_back(cb);
-}
-
-void InvertedListsIOHook::print_callbacks() {
-    printf("registered %zd InvertedListsIOHooks:\n",
-           InvertedListsIOHook_table.size());
-    for (const auto& cb : InvertedListsIOHook_table) {
-        printf("%08x %s %s\n",
-               fourcc(cb->key.c_str()),
-               cb->key.c_str(),
-               cb->classname.c_str());
-    }
-}
-
-InvertedLists* InvertedListsIOHook::read_ArrayInvertedLists(
-        IOReader*,
-        int,
-        size_t,
-        size_t,
-        const std::vector<size_t>&) const {
-    FAISS_THROW_FMT("read to array not implemented for %s", classname.c_str());
 }
 
 } // namespace faiss

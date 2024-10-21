@@ -51,22 +51,6 @@ struct IndexFlatCodes : Index {
         return get_FlatCodesDistanceComputer();
     }
 
-    /** Search implemented by decoding */
-    void search(
-            idx_t n,
-            const float* x,
-            idx_t k,
-            float* distances,
-            idx_t* labels,
-            const SearchParameters* params = nullptr) const override;
-
-    void range_search(
-            idx_t n,
-            const float* x,
-            float radius,
-            RangeSearchResult* result,
-            const SearchParameters* params = nullptr) const override;
-
     void check_compatible_for_merge(const Index& otherIndex) const override;
 
     virtual void merge_from(Index& otherIndex, idx_t add_id = 0) override;

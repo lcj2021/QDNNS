@@ -30,13 +30,6 @@ struct IndexFlat : IndexFlatCodes {
             idx_t* labels,
             const SearchParameters* params = nullptr) const override;
 
-    void range_search(
-            idx_t n,
-            const float* x,
-            float radius,
-            RangeSearchResult* result,
-            const SearchParameters* params = nullptr) const override;
-
     void reconstruct(idx_t key, float* recons) const override;
 
     /** compute distance with a subset of vectors

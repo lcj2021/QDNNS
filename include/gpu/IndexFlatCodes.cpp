@@ -11,7 +11,6 @@
 #include <DistanceComputer.h>
 #include <FaissAssert.h>
 #include <IDSelector.h>
-#include <ResultHandler.h>
 #include <extra_distances.h>
 
 namespace faiss {
@@ -214,53 +213,12 @@ struct Run_search_with_decompress {
     }
 };
 
-struct Run_search_with_decompress_res {
-    using T = void;
-
-    template <class ResultHandler>
-    void f(ResultHandler& res, const IndexFlatCodes* index, const float* xq) {
-        Run_search_with_decompress<ResultHandler> r;
-        dispatch_VectorDistance(
-                index->d,
-                index->metric_type,
-                index->metric_arg,
-                r,
-                index,
-                xq,
-                res);
-    }
-};
-
 } // anonymous namespace
 
 FlatCodesDistanceComputer* IndexFlatCodes::get_FlatCodesDistanceComputer()
         const {
     Run_get_distance_computer r;
     return dispatch_VectorDistance(d, metric_type, metric_arg, r, this);
-}
-
-void IndexFlatCodes::search(
-        idx_t n,
-        const float* x,
-        idx_t k,
-        float* distances,
-        idx_t* labels,
-        const SearchParameters* params) const {
-    Run_search_with_decompress_res r;
-    const IDSelector* sel = params ? params->sel : nullptr;
-    dispatch_knn_ResultHandler(
-            n, distances, labels, k, metric_type, sel, r, this, x);
-}
-
-void IndexFlatCodes::range_search(
-        idx_t n,
-        const float* x,
-        float radius,
-        RangeSearchResult* result,
-        const SearchParameters* params) const {
-    const IDSelector* sel = params ? params->sel : nullptr;
-    Run_search_with_decompress_res r;
-    dispatch_range_ResultHandler(result, radius, metric_type, sel, r, this, x);
 }
 
 } // namespace faiss

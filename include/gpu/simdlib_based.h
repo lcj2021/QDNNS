@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include <ResultHandler.h>
 #include <platform_macros.h>
 
 #include <Heap.h>

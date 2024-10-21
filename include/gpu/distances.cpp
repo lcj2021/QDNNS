@@ -25,7 +25,6 @@
 #include <AuxIndexStructures.h>
 #include <FaissAssert.h>
 #include <IDSelector.h>
-#include <ResultHandler.h>
 
 // #include <distances_fused.h>
 
@@ -130,41 +129,6 @@ void fvec_renorm_L2(size_t d, size_t nx, float* __restrict x) {
  ***************************************************************************/
 
 namespace {
-
-/* Find the nearest neighbors for nx queries in a set of ny vectors */
-template <class BlockResultHandler>
-void exhaustive_inner_product_seq(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        BlockResultHandler& res) {
-    using SingleResultHandler =
-            typename BlockResultHandler::SingleResultHandler;
-    [[maybe_unused]] int nt = std::min(int(nx), omp_get_max_threads());
-
-#pragma omp parallel num_threads(nt)
-    {
-        SingleResultHandler resi(res);
-#pragma omp for
-        for (int64_t i = 0; i < nx; i++) {
-            const float* x_i = x + i * d;
-            const float* y_j = y;
-
-            resi.begin(i);
-
-            for (size_t j = 0; j < ny; j++, y_j += d) {
-                if (!res.is_in_selection(j)) {
-                    continue;
-                }
-                float ip = fvec_inner_product(x_i, y_j, d);
-                resi.add_result(ip, j);
-            }
-            resi.end();
-        }
-    }
-}
 
 template <class BlockResultHandler>
 void exhaustive_L2sqr_seq(
@@ -738,72 +702,6 @@ void exhaustive_L2sqr_blas_cmax_sve(
 }
 #endif
 
-// an override if only a single closest point is needed
-template <>
-void exhaustive_L2sqr_blas<Top1BlockResultHandler<CMax<float, int64_t>>>(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        Top1BlockResultHandler<CMax<float, int64_t>>& res,
-        const float* y_norms) {
-#if defined(__AVX2__)
-    // use a faster fused kernel if available
-    if (exhaustive_L2sqr_fused_cmax(x, y, d, nx, ny, res, y_norms)) {
-        // the kernel is available and it is complete, we're done.
-        return;
-    }
-
-    // run the specialized AVX2 implementation
-    exhaustive_L2sqr_blas_cmax_avx2(x, y, d, nx, ny, res, y_norms);
-
-#elif defined(__ARM_FEATURE_SVE)
-    // use a faster fused kernel if available
-    if (exhaustive_L2sqr_fused_cmax(x, y, d, nx, ny, res, y_norms)) {
-        // the kernel is available and it is complete, we're done.
-        return;
-    }
-
-    // run the specialized SVE implementation
-    exhaustive_L2sqr_blas_cmax_sve(x, y, d, nx, ny, res, y_norms);
-
-#elif defined(__aarch64__)
-    // use a faster fused kernel if available
-    if (exhaustive_L2sqr_fused_cmax(x, y, d, nx, ny, res, y_norms)) {
-        // the kernel is available and it is complete, we're done.
-        return;
-    }
-
-    // run the default implementation
-    exhaustive_L2sqr_blas_default_impl<
-            Top1BlockResultHandler<CMax<float, int64_t>>>(
-            x, y, d, nx, ny, res, y_norms);
-#else
-    // run the default implementation
-    exhaustive_L2sqr_blas_default_impl<
-            Top1BlockResultHandler<CMax<float, int64_t>>>(
-            x, y, d, nx, ny, res, y_norms);
-#endif
-}
-
-struct Run_search_inner_product {
-    using T = void;
-    template <class BlockResultHandler>
-    void f(BlockResultHandler& res,
-           const float* x,
-           const float* y,
-           size_t d,
-           size_t nx,
-           size_t ny) {
-        if (res.sel || nx < distance_compute_blas_threshold) {
-            exhaustive_inner_product_seq(x, y, d, nx, ny, res);
-        } else {
-            exhaustive_inner_product_blas(x, y, d, nx, ny, res);
-        }
-    }
-};
-
 struct Run_search_L2sqr {
     using T = void;
     template <class BlockResultHandler>
@@ -857,10 +755,6 @@ void knn_inner_product(
         return;
     }
 
-    Run_search_inner_product r;
-    dispatch_knn_ResultHandler(
-            nx, vals, ids, k, METRIC_INNER_PRODUCT, sel, r, x, y, d, nx, ny);
-
     if (imin != 0) {
         for (size_t i = 0; i < nx * k; i++) {
             if (ids[i] >= 0) {
@@ -906,10 +800,6 @@ void knn_L2sqr(
         return;
     }
 
-    Run_search_L2sqr r;
-    dispatch_knn_ResultHandler(
-            nx, vals, ids, k, METRIC_L2, sel, r, x, y, d, nx, ny, y_norm2);
-
     if (imin != 0) {
         for (size_t i = 0; i < nx * k; i++) {
             if (ids[i] >= 0) {
@@ -935,35 +825,6 @@ void knn_L2sqr(
 /***************************************************************************
  * Range search
  ***************************************************************************/
-
-// TODO accept a y_norm2 as well
-void range_search_L2sqr(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        float radius,
-        RangeSearchResult* res,
-        const IDSelector* sel) {
-    Run_search_L2sqr r;
-    dispatch_range_ResultHandler(
-            res, radius, METRIC_L2, sel, r, x, y, d, nx, ny, nullptr);
-}
-
-void range_search_inner_product(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        float radius,
-        RangeSearchResult* res,
-        const IDSelector* sel) {
-    Run_search_inner_product r;
-    dispatch_range_ResultHandler(
-            res, radius, METRIC_INNER_PRODUCT, sel, r, x, y, d, nx, ny);
-}
 
 /***************************************************************************
  * compute a subset of  distances

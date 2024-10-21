@@ -55,27 +55,6 @@ void IndexFlat::search(
     }
 }
 
-void IndexFlat::range_search(
-        idx_t n,
-        const float* x,
-        float radius,
-        RangeSearchResult* result,
-        const SearchParameters* params) const {
-    IDSelector* sel = params ? params->sel : nullptr;
-
-    switch (metric_type) {
-        case METRIC_INNER_PRODUCT:
-            range_search_inner_product(
-                    x, get_xb(), d, n, ntotal, radius, result, sel);
-            break;
-        case METRIC_L2:
-            range_search_L2sqr(x, get_xb(), d, n, ntotal, radius, result, sel);
-            break;
-        default:
-            FAISS_THROW_MSG("metric type not supported");
-    }
-}
-
 void IndexFlat::compute_distance_subset(
         idx_t n,
         const float* x,

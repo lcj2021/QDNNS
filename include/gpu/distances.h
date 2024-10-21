@@ -431,17 +431,6 @@ void range_search_L2sqr(
         RangeSearchResult* result,
         const IDSelector* sel = nullptr);
 
-/// same as range_search_L2sqr for the inner product similarity
-void range_search_inner_product(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        float radius,
-        RangeSearchResult* result,
-        const IDSelector* sel = nullptr);
-
 /***************************************************************************
  * PQ tables computations
  ***************************************************************************/

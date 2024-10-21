@@ -8,7 +8,6 @@
 #pragma once
 
 #include <Index.h>
-#include <DistanceComputer.h>
 #include <vector>
 
 namespace faiss {
@@ -35,16 +34,6 @@ struct IndexFlatCodes : Index {
     void reconstruct(idx_t key, float* recons) const override;
 
     size_t sa_code_size() const override;
-
-    /** a FlatCodesDistanceComputer offers a distance_to_code method
-     *
-     * The default implementation explicitly decodes the vector with sa_decode.
-     */
-    virtual FlatCodesDistanceComputer* get_FlatCodesDistanceComputer() const;
-
-    DistanceComputer* get_distance_computer() const override {
-        return get_FlatCodesDistanceComputer();
-    }
 
     void check_compatible_for_merge(const Index& otherIndex) const override;
 

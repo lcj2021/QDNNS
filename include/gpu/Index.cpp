@@ -10,7 +10,6 @@
 #include <Index.h>
 
 #include <AuxIndexStructures.h>
-#include <DistanceComputer.h>
 #include <FaissAssert.h>
 #include <distances.h>
 
@@ -131,43 +130,7 @@ void Index::sa_decode(idx_t, const uint8_t*, float*) const {
 
 namespace {
 
-// storage that explicitly reconstructs vectors before computing distances
-struct GenericDistanceComputer : DistanceComputer {
-    size_t d;
-    const Index& storage;
-    std::vector<float> buf;
-    const float* q;
-
-    explicit GenericDistanceComputer(const Index& storage) : storage(storage) {
-        d = storage.d;
-        buf.resize(d * 2);
-    }
-
-    float operator()(idx_t i) override {
-        storage.reconstruct(i, buf.data());
-        return fvec_L2sqr(q, buf.data(), d);
-    }
-
-    float symmetric_dis(idx_t i, idx_t j) override {
-        storage.reconstruct(i, buf.data());
-        storage.reconstruct(j, buf.data() + d);
-        return fvec_L2sqr(buf.data() + d, buf.data(), d);
-    }
-
-    void set_query(const float* x) override {
-        q = x;
-    }
-};
-
 } // namespace
-
-DistanceComputer* Index::get_distance_computer() const {
-    if (metric_type == METRIC_L2) {
-        return new GenericDistanceComputer(*this);
-    } else {
-        FAISS_THROW_MSG("get_distance_computer() not implemented");
-    }
-}
 
 void Index::merge_from(Index& /* otherIndex */, idx_t /* add_id */) {
     FAISS_THROW_MSG("merge_from() not implemented");

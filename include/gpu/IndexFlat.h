@@ -49,8 +49,6 @@ struct IndexFlat : IndexFlatCodes {
 
     IndexFlat() {}
 
-    FlatCodesDistanceComputer* get_FlatCodesDistanceComputer() const override;
-
     /* The stanadlone codec interface (just memcopies in this case) */
     void sa_encode(idx_t n, const float* x, uint8_t* bytes) const override;
 
@@ -74,9 +72,6 @@ struct IndexFlatL2 : IndexFlat {
      */
     explicit IndexFlatL2(idx_t d) : IndexFlat(d, METRIC_L2) {}
     IndexFlatL2() {}
-
-    // override for l2 norms cache.
-    FlatCodesDistanceComputer* get_FlatCodesDistanceComputer() const override;
 
     // compute L2 norms
     void sync_l2norms();

@@ -14,7 +14,6 @@
 #include <cmath>
 
 #include <AuxIndexStructures.h>
-#include <DistanceComputer.h>
 #include <FaissAssert.h>
 #include <utils.h>
 
@@ -98,50 +97,6 @@ struct Run_knn_extra_metrics {
     }
 };
 
-template <class VD>
-struct ExtraDistanceComputer : FlatCodesDistanceComputer {
-    VD vd;
-    idx_t nb;
-    const float* q;
-    const float* b;
-
-    float symmetric_dis(idx_t i, idx_t j) final {
-        return vd(b + j * vd.d, b + i * vd.d);
-    }
-
-    float distance_to_code(const uint8_t* code) final {
-        return vd(q, (float*)code);
-    }
-
-    ExtraDistanceComputer(
-            const VD& vd,
-            const float* xb,
-            size_t nb,
-            const float* q = nullptr)
-            : FlatCodesDistanceComputer((uint8_t*)xb, vd.d * sizeof(float)),
-              vd(vd),
-              nb(nb),
-              q(q),
-              b(xb) {}
-
-    void set_query(const float* x) override {
-        q = x;
-    }
-};
-
-struct Run_get_distance_computer {
-    using T = FlatCodesDistanceComputer*;
-
-    template <class VD>
-    FlatCodesDistanceComputer* f(
-            VD vd,
-            const float* xb,
-            size_t nb,
-            const float* q = nullptr) {
-        return new ExtraDistanceComputer<VD>(vd, xb, nb, q);
-    }
-};
-
 } // anonymous namespace
 
 void pairwise_extra_distances(
@@ -184,16 +139,6 @@ void knn_extra_metrics(
     Run_knn_extra_metrics run;
     dispatch_VectorDistance(
             d, mt, metric_arg, run, x, y, nx, ny, k, distances, indexes);
-}
-
-FlatCodesDistanceComputer* get_extra_distance_computer(
-        size_t d,
-        MetricType mt,
-        float metric_arg,
-        size_t nb,
-        const float* xb) {
-    Run_get_distance_computer run;
-    return dispatch_VectorDistance(d, mt, metric_arg, run, xb, nb);
 }
 
 } // namespace faiss

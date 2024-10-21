@@ -50,9 +50,7 @@
 
 namespace faiss {
 
-/// and impl/DistanceComputer.h
 struct RangeSearchResult;
-struct DistanceComputer;
 
 /** Parent class for the optional search paramenters.
  *
@@ -259,14 +257,6 @@ struct Index {
             const float* xs,
             float* residuals,
             const idx_t* keys) const;
-
-    /** Get a DistanceComputer (defined in AuxIndexStructures) object
-     * for this kind of index.
-     *
-     * DistanceComputer is implemented for indexes that support random
-     * access of their vectors.
-     */
-    virtual DistanceComputer* get_distance_computer() const;
 
     /* The standalone codec interface */
 

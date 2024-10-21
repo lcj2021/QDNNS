@@ -102,25 +102,21 @@ void FlatIndex::query(
         bool exactDistance) {
     auto stream = resources_->getDefaultStreamCurrentDevice();
 
-    if (useFloat16_) {
-        // We need to convert the input to float16 for comparison to ourselves
-    } else {
-        bfKnnOnDevice(
-                resources_,
-                getCurrentDevice(),
-                stream,
-                vectors_,
-                true, // is vectors row major?
-                &norms_,
-                input,
-                true, // input is row major
-                k,
-                metric,
-                metricArg,
-                outDistances,
-                outIndices,
-                !exactDistance);
-    }
+    bfKnnOnDevice(
+            resources_,
+            getCurrentDevice(),
+            stream,
+            vectors_,
+            true, // is vectors row major?
+            &norms_,
+            input,
+            true, // input is row major
+            k,
+            metric,
+            metricArg,
+            outDistances,
+            outIndices,
+            !exactDistance);
 }
 
 void FlatIndex::reconstruct(

@@ -23,8 +23,8 @@ int main(int argc, char** argv) {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
-    std::string dataset = "imagenet";
-    // std::string dataset = "wikipedia";
+    // std::string dataset = "imagenet";
+    std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
         metric = faiss::MetricType::METRIC_INNER_PRODUCT;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
     nest_test_vectors.resize(nq);
     nq = nest_test_vectors.size();
 
-    nest_train_vectors.resize(nt);
+    nest_train_vectors.resize(nt / 1);
     nt = nest_train_vectors.size();
 
     cout << "Load Data Done!" << endl;
@@ -91,67 +91,55 @@ int main(int argc, char** argv) {
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
     faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, metric, config);
-    // faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, faiss::MetricType::METRIC_INNER_PRODUCT, config);
     gpuIndex.add(nb, base_vectors.data());
 
+    // query_timer.Reset();
+    // query_timer.Start();
+
+    // gpuIndex.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
+
+    // query_timer.Stop();
+    // std::cout << "[Query GT] Query search time: " << query_timer.GetTime() << std::endl;
+    // cout << "Query GT write to file: " << test_gt_path << endl;
+    // for (int i = 0; i < nq; ++i) {
+    //     for (int j = 0; j < k; ++j) {
+    //         knn_i32[i][j] = knn[i * k + j];
+    //     }
+    // }
+
+    // for (int i = 0; i < 10; ++i) {
+    //     for (int j = 0; j < k; ++j) {
+    //         std::cout << dist[i * k + j] << " ";
+    //     } std::cout << std::endl;
+    // }
+
+    // std::cout << "[Naive] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn_i32) << std::endl;
+
+    knn.resize(nt * k);
+    knn_i32.resize(nt, std::vector<id_t>(k));
+    dist.resize(nt * k);
     query_timer.Reset();
     query_timer.Start();
 
-    gpuIndex.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
+    gpuIndex.search(nt, train_vectors.data(), k, dist.data(), knn.data());
 
     query_timer.Stop();
-    std::cout << "[Query GT] Query search time: " << query_timer.GetTime() << std::endl;
-    cout << "Query GT write to file: " << test_gt_path << endl;
-    for (int i = 0; i < nq; ++i) {
+    std::cout << "[Train] Train search time: " << query_timer.GetTime() << std::endl;
+    cout << "Using Train GT from file: " << train_gt_path << endl;
+    for (int i = 0; i < nt; ++i) {
         for (int j = 0; j < k; ++j) {
             knn_i32[i][j] = knn[i * k + j];
         }
     }
 
-    std::cout << "[Naive] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn_i32) << std::endl;
-    // utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, test_gt_path);
+    for (int i = 0; i < 10; ++i) {
+        for (int j = 0; j < k; ++j) {
+            std::cout << dist[i * k + j] << " ";
+        } std::cout << std::endl;
+    }
 
-//     knn.resize(nt, std::vector<id_t>(k));
-//     query_timer.Reset();
-//     query_timer.Start();
-// #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
-//     for (size_t qid = 0; qid < nt; ++qid) {
-//         const auto& q = nest_train_vectors[qid];
-//         std::vector<std::pair<data_t, id_t>> dists_candidates(nb);
-//         std::priority_queue<std::pair<data_t, id_t>> top_candidates;
-
-//         for (size_t i = 0; i < nb; ++i) {
-//             dists_candidates[i].first = distance(q.data(), base_vectors.data() + i * d0, d0);
-//             dists_candidates[i].second = i;
-//             top_candidates.emplace(dists_candidates[i]);
-//             if (top_candidates.size() > k) {
-//                 top_candidates.pop();
-//             }
-//         }
-
-//         // partial_sort(dists_candidates.begin(), dists_candidates.begin() + k, dists_candidates.end(), [](auto &l, auto &r) {
-//         // // sort(dists_candidates.begin(), dists_candidates.end(), [](auto &l, auto &r) {
-//         //     if (l.first != r.first) return l.first < r.first;
-//         //     return l.second < r.second;
-//         // });
-        
-//         // for (int i = 0; i < k; ++i) {
-//         //     knn[qid][i] = dists_candidates[i].second;
-//         // }
-//         knn[qid].clear();
-//         while (top_candidates.size()) {
-//             knn[qid].emplace_back(top_candidates.top().second);
-//             top_candidates.pop();
-//         }
-//         if (rand() % 100 < 1) {
-//             // cout << knn[qid].size() << endl;
-//             cout << qid << endl;
-//         }
-//     }
-//     query_timer.Stop();
-//     std::cout << "[Train GT] Train search time: " << query_timer.GetTime() << std::endl;
-//     cout << train_gt_path + ".new" << endl;
-//     utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, train_gt_path + ".new");
-  return 0;
+    std::cout << "[Train] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn_i32) << std::endl;
+    cout << "Using Train GT from file: " << test_gt_path << endl;
+    return 0;
 }
 // g++ test_gpu.cpp -std=c++17 -I ../include/ -Lbuild/ -Ofast -march=native -mtune=native -lrt -fopenmp -o test_gpu && ./test_gpu

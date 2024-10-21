@@ -14,8 +14,8 @@ std::string prefix = "/home/zhengweiguo/liuchengjun/";
 int main(int argc, char** argv) {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
-    std::string dataset = "gist1m";
-    // std::string dataset = "imagenet";
+    // std::string dataset = "gist1m";
+    std::string dataset = "imagenet";
     // std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.new";
         distance = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     nest_test_vectors.resize(nq / 1);
     nq = nest_test_vectors.size();
 
-    nest_train_vectors.resize(nt / 1);
+    nest_train_vectors.resize(nt / 1000);
     nt = nest_train_vectors.size();
 
     cout << "Load Data Done!" << endl;
@@ -87,11 +87,12 @@ int main(int argc, char** argv) {
     std::cout << "efSearch: " << efq << std::endl;
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
+    std::cout << "index_path: " << index_path << std::endl;
 
-    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, distance>> (
+    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, InnerProduct>> (
         base_vectors, index_path, dataset,
         num_clusters, check_stamp);
-    hnsw->SetNumThreads(72);
+    hnsw->SetNumThreads(16);
 
     build_timer.Start();
     // hnsw->BuildIndex(base_vectors);
@@ -111,13 +112,13 @@ int main(int argc, char** argv) {
 
     // std::cout << "[Early stop] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nq << std::endl;
 
-    query_timer.Reset();
-    query_timer.Start();
-    hnsw->Search(nest_test_vectors, k, efq, knn, dists);
-    query_timer.Stop();
-    std::cout << "[HNSW] Query search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[HNSW] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
-    std::cout << "[HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nq << std::endl;
+    // query_timer.Reset();
+    // query_timer.Start();
+    // hnsw->Search(nest_test_vectors, k, efq, knn, dists);
+    // query_timer.Stop();
+    // std::cout << "[HNSW] Query search time: " << query_timer.GetTime() << std::endl;
+    // std::cout << "[HNSW] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
+    // std::cout << "[HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nq << std::endl;
 
     query_timer.Reset();
     query_timer.Start();

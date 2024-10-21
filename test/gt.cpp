@@ -15,8 +15,8 @@ int main(int argc, char** argv) {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
-    std::string dataset = "imagenet";
-    // std::string dataset = "wikipedia";
+    // std::string dataset = "imagenet";
+    std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -26,9 +26,9 @@ int main(int argc, char** argv) {
     if (dataset == "imagenet" || dataset == "wikipedia") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.new";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.new";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
         distance = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -66,61 +66,18 @@ int main(int argc, char** argv) {
     cout << "Dimension train_vector: " << dt << endl;
 
     size_t k = 100;
-    size_t num_threads_ = 24;
+    size_t num_threads_ = 128;
 
     utils::STimer query_timer, train_timer;
     std::cout << "dataset: " << dataset << std::endl;
 
     std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
 
-    query_timer.Reset();
-    query_timer.Start();
-#pragma omp parallel for schedule(dynamic) num_threads(num_threads_)
-    for (size_t qid = 0; qid < nq; ++qid) {
-        const auto& q = nest_test_vectors[qid];
-        std::vector<std::pair<data_t, id_t>> dists_candidates(nb);
-        std::priority_queue<std::pair<data_t, id_t>> top_candidates;
-
-        for (size_t i = 0; i < nb; ++i) {
-            dists_candidates[i].first = distance(q.data(), base_vectors.data() + i * d0, d0);
-            dists_candidates[i].second = i;
-            top_candidates.emplace(dists_candidates[i]);
-            if (top_candidates.size() > k) {
-                top_candidates.pop();
-            }
-        }
-
-        // partial_sort(dists_candidates.begin(), dists_candidates.begin() + k, dists_candidates.end(), [](auto &l, auto &r) {
-        // // sort(dists_candidates.begin(), dists_candidates.end(), [](auto &l, auto &r) {
-        //     if (l.first != r.first) return l.first < r.first;
-        //     return l.second < r.second;
-        // });
-        
-        // for (int i = 0; i < k; ++i) {
-        //     knn[qid][i] = dists_candidates[i].second;
-        // }
-        
-        while (top_candidates.size()) {
-            knn[qid].emplace_back(top_candidates.top().second);
-            top_candidates.pop();
-        }
-        // if (rand() % 100 < 1) {
-        // // if (qid % 10 < 0) {
-        //     cout << qid << endl;
-        // }
-    }
-
-    query_timer.Stop();
-    std::cout << "[Query GT] Query search time: " << query_timer.GetTime() << std::endl;
-    cout << "Query GT write to file: " << test_gt_path << endl;
-    utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, test_gt_path);
-
-//     knn.resize(nt, std::vector<id_t>(k));
-//     query_timer.Reset();
-//     query_timer.Start();
-// #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
-//     for (size_t qid = 0; qid < nt; ++qid) {
-//         const auto& q = nest_train_vectors[qid];
+    // query_timer.Reset();
+    // query_timer.Start();
+// #pragma omp parallel for schedule(dynamic) num_threads(num_threads_)
+//     for (size_t qid = 0; qid < nq; ++qid) {
+//         const auto& q = nest_test_vectors[qid];
 //         std::vector<std::pair<data_t, id_t>> dists_candidates(nb);
 //         std::priority_queue<std::pair<data_t, id_t>> top_candidates;
 
@@ -142,20 +99,62 @@ int main(int argc, char** argv) {
 //         // for (int i = 0; i < k; ++i) {
 //         //     knn[qid][i] = dists_candidates[i].second;
 //         // }
-//         knn[qid].clear();
+        
 //         while (top_candidates.size()) {
 //             knn[qid].emplace_back(top_candidates.top().second);
 //             top_candidates.pop();
 //         }
 //         if (rand() % 100 < 1) {
-//             // cout << knn[qid].size() << endl;
+//         // if (qid % 10 < 0) {
 //             cout << qid << endl;
 //         }
 //     }
-//     query_timer.Stop();
-//     std::cout << "[Train GT] Train search time: " << query_timer.GetTime() << std::endl;
-//     cout << train_gt_path + ".new" << endl;
-//     utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, train_gt_path + ".new");
+
+    // query_timer.Stop();
+    // std::cout << "[Query GT] Query search time: " << query_timer.GetTime() << std::endl;
+    // cout << "Query GT write to file: " << test_gt_path << endl;
+    // utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, test_gt_path);
+
+    knn.resize(nt, std::vector<id_t>(k));
+    query_timer.Reset();
+    query_timer.Start();
+#pragma omp parallel for schedule(dynamic) num_threads(num_threads_)
+    for (size_t qid = 0; qid < nt; ++qid) {
+        const auto& q = nest_train_vectors[qid];
+        std::vector<std::pair<data_t, id_t>> dists_candidates(nb);
+        std::priority_queue<std::pair<data_t, id_t>> top_candidates;
+
+        for (size_t i = 0; i < nb; ++i) {
+            dists_candidates[i].first = distance(q.data(), base_vectors.data() + i * d0, d0);
+            dists_candidates[i].second = i;
+            top_candidates.emplace(dists_candidates[i]);
+            if (top_candidates.size() > k) {
+                top_candidates.pop();
+            }
+        }
+
+        partial_sort(dists_candidates.begin(), dists_candidates.begin() + k, dists_candidates.end(), [](auto &l, auto &r) {
+        // sort(dists_candidates.begin(), dists_candidates.end(), [](auto &l, auto &r) {
+            if (l.first != r.first) return l.first < r.first;
+            return l.second < r.second;
+        });
+        
+        for (int i = 0; i < k; ++i) {
+            knn[qid][i] = dists_candidates[i].second;
+        }
+        // knn[qid].clear();
+        // while (top_candidates.size()) {
+        //     knn[qid].emplace_back(top_candidates.top().second);
+        //     top_candidates.pop();
+        // }
+        if (rand() % 1000 < 1) {
+            cout << qid << endl;
+        }
+    }
+    query_timer.Stop();
+    std::cout << "[Train GT] Train search time: " << query_timer.GetTime() << std::endl;
+    cout << train_gt_path << endl;
+    utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size(), knn[0].size()}, train_gt_path);
   return 0;
 }
 

@@ -126,6 +126,16 @@ namespace anns
 
 #if defined(__AVX512F__)
 
+  static float L2NoSIMD(const float *x, const float *y, size_t d)
+  {
+    double dist = 0;
+    for (size_t i = 0; i < d; i++)
+    {
+        dist += (x[i] - y[i]) * (x[i] - y[i]);
+    }
+    return dist;
+  }
+
   // AVX512 implementation by Yusuke
   static float L2(const float *x, const float *y, size_t d)
   {
@@ -930,3 +940,4 @@ namespace anns
 
 using anns::L2;
 using anns::InnerProduct;
+using anns::L2NoSIMD;

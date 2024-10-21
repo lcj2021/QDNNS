@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <iostream>
 
 namespace faiss {
 namespace gpu {
@@ -267,6 +268,7 @@ void GpuIndex::search(
     }
 
     if (!usePaged) {
+        std::cerr << "usePaged not set =>" << "searchNonPaged_" << std::endl;
         searchNonPaged_(n, x, k, outDistances.data(), outLabels.data(), params);
     }
 

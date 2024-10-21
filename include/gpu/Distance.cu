@@ -382,7 +382,8 @@ void runDistance(
             // tileCols to the index
             runIncrementIndex(
                     outIndexBufRowView, k, tileCols, streams[curStream]);
-
+            
+            std::cerr << "runBlockSelectPair" << std::endl;
             runBlockSelectPair(
                     outDistanceBufRowView,
                     outIndexBufRowView,

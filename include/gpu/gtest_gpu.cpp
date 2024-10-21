@@ -92,7 +92,6 @@
 //  * LICENSE file in the root directory of this source tree.
 //  */
 
-// #include <IndexFlat.h>
 // #include <GpuIndexFlat.h>
 // #include <StandardGpuResources.h>
 // #include <IndexUtils.h>

@@ -5,7 +5,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include <IndexFlat.h>
 #include <GpuIndex.h>
 #include <GpuIndexFlat.h>
 #include <GpuResources.h>
@@ -23,40 +22,6 @@
 
 namespace faiss {
 namespace gpu {
-
-GpuIndexFlat::GpuIndexFlat(
-        GpuResourcesProvider* provider,
-        const faiss::IndexFlat* index,
-        GpuIndexFlatConfig config)
-        : GpuIndex(
-                  provider->getResources(),
-                  index->d,
-                  index->metric_type,
-                  index->metric_arg,
-                  config),
-          flatConfig_(config) {
-    // Flat index doesn't need training
-    this->is_trained = true;
-
-    copyFrom(index);
-}
-
-GpuIndexFlat::GpuIndexFlat(
-        std::shared_ptr<GpuResources> resources,
-        const faiss::IndexFlat* index,
-        GpuIndexFlatConfig config)
-        : GpuIndex(
-                  resources,
-                  index->d,
-                  index->metric_type,
-                  index->metric_arg,
-                  config),
-          flatConfig_(config) {
-    // Flat index doesn't need training
-    this->is_trained = true;
-
-    copyFrom(index);
-}
 
 GpuIndexFlat::GpuIndexFlat(
         GpuResourcesProvider* provider,
@@ -113,40 +78,6 @@ void GpuIndexFlat::resetIndex_(int dims) {
                 dims,
                 flatConfig_.useFloat16,
                 config_.memorySpace));
-    }
-}
-
-void GpuIndexFlat::copyFrom(const faiss::IndexFlat* index) {
-    DeviceScope scope(config_.device);
-
-    GpuIndex::copyFrom(index);
-
-    data_.reset();
-    resetIndex_(this->d);
-
-    // The index could be empty
-    if (index->ntotal > 0) {
-        data_->add(
-                index->get_xb(),
-                index->ntotal,
-                resources_->getDefaultStream(config_.device));
-    }
-}
-
-void GpuIndexFlat::copyTo(faiss::IndexFlat* index) const {
-    DeviceScope scope(config_.device);
-
-    GpuIndex::copyTo(index);
-    index->code_size = sizeof(float) * this->d;
-
-    FAISS_ASSERT(data_);
-    FAISS_ASSERT(data_->getSize() == this->ntotal);
-    index->codes.resize(this->ntotal * index->code_size);
-
-    if (this->ntotal > 0) {
-        // FIXME: there is an extra GPU allocation here and copy if the flat
-        // index is already float32
-        reconstruct_n(0, this->ntotal, index->get_xb());
     }
 }
 
@@ -352,18 +283,6 @@ void GpuIndexFlat::compute_residual_n(
 
 GpuIndexFlatL2::GpuIndexFlatL2(
         GpuResourcesProvider* provider,
-        faiss::IndexFlatL2* index,
-        GpuIndexFlatConfig config)
-        : GpuIndexFlat(provider, index, config) {}
-
-GpuIndexFlatL2::GpuIndexFlatL2(
-        std::shared_ptr<GpuResources> resources,
-        faiss::IndexFlatL2* index,
-        GpuIndexFlatConfig config)
-        : GpuIndexFlat(resources, index, config) {}
-
-GpuIndexFlatL2::GpuIndexFlatL2(
-        GpuResourcesProvider* provider,
         int dims,
         GpuIndexFlatConfig config)
         : GpuIndexFlat(provider, dims, faiss::METRIC_L2, config) {}
@@ -374,40 +293,9 @@ GpuIndexFlatL2::GpuIndexFlatL2(
         GpuIndexFlatConfig config)
         : GpuIndexFlat(resources, dims, faiss::METRIC_L2, config) {}
 
-void GpuIndexFlatL2::copyFrom(faiss::IndexFlat* index) {
-    FAISS_THROW_IF_NOT_MSG(
-            index->metric_type == metric_type,
-            "Cannot copy a GpuIndexFlatL2 from an index of "
-            "different metric_type");
-
-    GpuIndexFlat::copyFrom(index);
-}
-
-void GpuIndexFlatL2::copyTo(faiss::IndexFlat* index) {
-    FAISS_THROW_IF_NOT_MSG(
-            index->metric_type == metric_type,
-            "Cannot copy a GpuIndexFlatL2 to an index of "
-            "different metric_type");
-
-    GpuIndexFlat::copyTo(index);
-}
-
 //
 // GpuIndexFlatIP
 //
-
-GpuIndexFlatIP::GpuIndexFlatIP(
-        GpuResourcesProvider* provider,
-        faiss::IndexFlatIP* index,
-        GpuIndexFlatConfig config)
-        : GpuIndexFlat(provider, index, config) {}
-
-GpuIndexFlatIP::GpuIndexFlatIP(
-        std::shared_ptr<GpuResources> resources,
-        faiss::IndexFlatIP* index,
-        GpuIndexFlatConfig config)
-        : GpuIndexFlat(resources, index, config) {}
-
 GpuIndexFlatIP::GpuIndexFlatIP(
         GpuResourcesProvider* provider,
         int dims,
@@ -420,24 +308,6 @@ GpuIndexFlatIP::GpuIndexFlatIP(
         GpuIndexFlatConfig config)
         : GpuIndexFlat(resources, dims, faiss::METRIC_INNER_PRODUCT, config) {}
 
-void GpuIndexFlatIP::copyFrom(faiss::IndexFlat* index) {
-    FAISS_THROW_IF_NOT_MSG(
-            index->metric_type == metric_type,
-            "Cannot copy a GpuIndexFlatIP from an index of "
-            "different metric_type");
-
-    GpuIndexFlat::copyFrom(index);
-}
-
-void GpuIndexFlatIP::copyTo(faiss::IndexFlat* index) {
-    // The passed in index must be IP
-    FAISS_THROW_IF_NOT_MSG(
-            index->metric_type == metric_type,
-            "Cannot copy a GpuIndexFlatIP to an index of "
-            "different metric_type");
-
-    GpuIndexFlat::copyTo(index);
-}
 
 } // namespace gpu
 } // namespace faiss

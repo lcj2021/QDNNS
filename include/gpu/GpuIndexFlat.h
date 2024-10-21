@@ -40,15 +40,15 @@ class GpuIndexFlat : public GpuIndex {
    public:
     /// Construct from a pre-existing faiss::IndexFlat instance, copying
     /// data over to the given GPU
-    GpuIndexFlat(
-            GpuResourcesProvider* provider,
-            const faiss::IndexFlat* index,
-            GpuIndexFlatConfig config = GpuIndexFlatConfig());
+    // GpuIndexFlat(
+    //         GpuResourcesProvider* provider,
+    //         const faiss::IndexFlat* index,
+    //         GpuIndexFlatConfig config = GpuIndexFlatConfig());
 
-    GpuIndexFlat(
-            std::shared_ptr<GpuResources> resources,
-            const faiss::IndexFlat* index,
-            GpuIndexFlatConfig config = GpuIndexFlatConfig());
+    // GpuIndexFlat(
+    //         std::shared_ptr<GpuResources> resources,
+    //         const faiss::IndexFlat* index,
+    //         GpuIndexFlatConfig config = GpuIndexFlatConfig());
 
     /// Construct an empty instance that can be added to
     GpuIndexFlat(
@@ -67,11 +67,11 @@ class GpuIndexFlat : public GpuIndex {
 
     /// Initialize ourselves from the given CPU index; will overwrite
     /// all data in ourselves
-    void copyFrom(const faiss::IndexFlat* index);
+    // void copyFrom(const faiss::IndexFlat* index);
 
     /// Copy ourselves to the given CPU index; will overwrite all data
     /// in the index instance
-    void copyTo(faiss::IndexFlat* index) const;
+    // void copyTo(faiss::IndexFlat* index) const;
 
     /// Returns the number of vectors we contain
     size_t getNumVecs() const;
@@ -144,18 +144,6 @@ class GpuIndexFlat : public GpuIndex {
 /// faiss::IndexFlat
 class GpuIndexFlatL2 : public GpuIndexFlat {
    public:
-    /// Construct from a pre-existing faiss::IndexFlatL2 instance, copying
-    /// data over to the given GPU
-    GpuIndexFlatL2(
-            GpuResourcesProvider* provider,
-            faiss::IndexFlatL2* index,
-            GpuIndexFlatConfig config = GpuIndexFlatConfig());
-
-    GpuIndexFlatL2(
-            std::shared_ptr<GpuResources> resources,
-            faiss::IndexFlatL2* index,
-            GpuIndexFlatConfig config = GpuIndexFlatConfig());
-
     /// Construct an empty instance that can be added to
     GpuIndexFlatL2(
             GpuResourcesProvider* provider,
@@ -169,11 +157,11 @@ class GpuIndexFlatL2 : public GpuIndexFlat {
 
     /// Initialize ourselves from the given CPU index; will overwrite
     /// all data in ourselves
-    void copyFrom(faiss::IndexFlat* index);
+    // void copyFrom(faiss::IndexFlat* index);
 
     /// Copy ourselves to the given CPU index; will overwrite all data
     /// in the index instance
-    void copyTo(faiss::IndexFlat* index);
+    // void copyTo(faiss::IndexFlat* index);
 };
 
 /// Wrapper around the GPU implementation that looks like
@@ -181,18 +169,6 @@ class GpuIndexFlatL2 : public GpuIndexFlat {
 /// faiss::IndexFlat
 class GpuIndexFlatIP : public GpuIndexFlat {
    public:
-    /// Construct from a pre-existing faiss::IndexFlatIP instance, copying
-    /// data over to the given GPU
-    GpuIndexFlatIP(
-            GpuResourcesProvider* provider,
-            faiss::IndexFlatIP* index,
-            GpuIndexFlatConfig config = GpuIndexFlatConfig());
-
-    GpuIndexFlatIP(
-            std::shared_ptr<GpuResources> resources,
-            faiss::IndexFlatIP* index,
-            GpuIndexFlatConfig config = GpuIndexFlatConfig());
-
     /// Construct an empty instance that can be added to
     GpuIndexFlatIP(
             GpuResourcesProvider* provider,
@@ -206,11 +182,11 @@ class GpuIndexFlatIP : public GpuIndexFlat {
 
     /// Initialize ourselves from the given CPU index; will overwrite
     /// all data in ourselves
-    void copyFrom(faiss::IndexFlat* index);
+    // void copyFrom(faiss::IndexFlat* index);
 
     /// Copy ourselves to the given CPU index; will overwrite all data
     /// in the index instance
-    void copyTo(faiss::IndexFlat* index);
+    // void copyTo(faiss::IndexFlat* index);
 };
 
 } // namespace gpu

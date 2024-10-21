@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cassert>
 #include <FaissAssert.h>
+#include <iostream>
 
 namespace faiss {
 
@@ -19,7 +20,6 @@ BlockInvertedLists::BlockInvertedLists(
         : InvertedLists(nlist, InvertedLists::INVALID_CODE_SIZE),
           n_per_block(n_per_block),
           block_size(block_size) {
-    ids.resize(nlist);
 }
 
 BlockInvertedLists::BlockInvertedLists()
@@ -33,6 +33,8 @@ BlockInvertedLists::~BlockInvertedLists() {
  **************************************************/
 
 BlockInvertedListsIOHook::BlockInvertedListsIOHook()
-        : InvertedListsIOHook("ilbl", typeid(BlockInvertedLists).name()) {}
+        : InvertedListsIOHook("ilbl", typeid(BlockInvertedLists).name()) {
+            std::cerr << "BlockInvertedLists: " << typeid(BlockInvertedLists).name() << std::endl;
+        }
 
 } // namespace faiss

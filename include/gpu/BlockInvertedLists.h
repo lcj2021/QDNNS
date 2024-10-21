@@ -30,8 +30,6 @@ struct BlockInvertedLists : InvertedLists {
     size_t n_per_block = 0; // nb of vectors stored per block
     size_t block_size = 0;  // nb bytes per block
 
-    std::vector<std::vector<idx_t>> ids;
-
     BlockInvertedLists(size_t nlist, size_t vec_per_block, size_t block_size);
 
     BlockInvertedLists();

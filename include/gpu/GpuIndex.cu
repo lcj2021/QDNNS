@@ -5,7 +5,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include <IndexFlat.h>
 #include <GpuIndex.h>
 #include <GpuResources.h>
 #include <IndexUtils.h>
@@ -519,8 +518,6 @@ bool isGpuIndexImplemented(faiss::Index* index) {
             return true;                  \
         }                                 \
     } while (false)
-
-    CHECK_INDEX(faiss::IndexFlat);
 
     return false;
 }

@@ -15,8 +15,8 @@ int main(int argc, char** argv) {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
-    // std::string dataset = "imagenet";
-    std::string dataset = "wikipedia";
+    std::string dataset = "imagenet";
+    // std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -26,9 +26,9 @@ int main(int argc, char** argv) {
     if (dataset == "imagenet" || dataset == "wikipedia") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs";
         distance = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -36,8 +36,8 @@ int main(int argc, char** argv) {
         test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.new";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.new";
-        // distance = L2;
-        distance = L2NoSIMD;
+        distance = L2;
+        // distance = L2NoSIMD;
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
@@ -52,10 +52,10 @@ int main(int argc, char** argv) {
     base_vectors.resize(nb * d0);
     nb = base_vectors.size() / d0;
 
-    nest_test_vectors.resize(nq);
+    nest_test_vectors.resize(nq / 1);
     nq = nest_test_vectors.size();
 
-    nest_train_vectors.resize(nt / 5000);
+    nest_train_vectors.resize(nt / 500);
     nt = nest_train_vectors.size();
 
     cout << "Load Data Done!" << endl;
@@ -73,12 +73,11 @@ int main(int argc, char** argv) {
     cout << "Dimension train_vector: " << dt << endl;
 
     size_t k = 100;
-    size_t num_threads_ = 64;
+    size_t num_threads_ = 128;
     size_t batchsize = 100;
 
     utils::STimer query_timer, train_timer;
     std::cout << "dataset: " << dataset << std::endl;
-    std::cout << "train_gt_path: " << train_gt_path << std::endl;
 
     std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
     std::vector<std::vector<data_t>> dist(nq, std::vector<data_t>(k));
@@ -127,8 +126,9 @@ int main(int argc, char** argv) {
 //             std::cout << dist[i][j] << " ";
 //         } std::cout << std::endl;
 //     }
-//     std::cout << "[Naive] Query search time: " << query_timer.GetTime() << std::endl;
-//     std::cout << "[Naive] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
+//     std::cout << "[Query] Using GT from file: " << test_gt_path << std::endl;
+//     std::cout << "[Query] Search time: " << query_timer.GetTime() << std::endl;
+//     std::cout << "[Query] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
 
     knn.resize(nt, std::vector<id_t>(k));
     query_timer.Reset();
@@ -163,16 +163,17 @@ int main(int argc, char** argv) {
                 knn[qid].emplace_back(top_candidates.top().second);
                 top_candidates.pop();
             }
-            if (rand() % 100 < 1) {
+            if (rand() % 100 < 5) {
                 // cout << knn[qid].size() << endl;
                 cout << qid << endl;
             }
         
     }
     query_timer.Stop();
-    std::cout << "[Naive] Train search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Naive] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
-  // ... ... ...
+    std::cout << "[Train] Using GT from file: " << train_gt_path << std::endl;
+    std::cout << "[Train] Search time: " << query_timer.GetTime() << std::endl;
+    std::cout << "[Train] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
+//   ... ... ...
   return 0;
 }
 

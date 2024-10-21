@@ -1,4 +1,3 @@
-#include <bits/stdc++.h>
 #include <GpuIndexFlat.h>
 #include <StandardGpuResources.h>
 #include <IndexUtils.h>
@@ -23,8 +22,8 @@ int main(int argc, char** argv) {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
-    // std::string dataset = "imagenet";
-    std::string dataset = "wikipedia";
+    std::string dataset = "imagenet";
+    // std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -34,7 +33,7 @@ int main(int argc, char** argv) {
     if (dataset == "imagenet" || dataset == "wikipedia") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
         metric = faiss::MetricType::METRIC_INNER_PRODUCT;
@@ -62,7 +61,7 @@ int main(int argc, char** argv) {
     nest_test_vectors.resize(nq);
     nq = nest_test_vectors.size();
 
-    nest_train_vectors.resize(nt / 1);
+    nest_train_vectors.resize(nt);
     nt = nest_train_vectors.size();
 
     cout << "Load Data Done!" << endl;
@@ -76,14 +75,11 @@ int main(int argc, char** argv) {
     cout << "Dimension train_vector: " << dt << endl;
 
     size_t k = 100;
-    size_t num_threads_ = 24;
 
     utils::STimer query_timer, train_timer;
     std::cout << "dataset: " << dataset << std::endl;
 
-    // std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
     std::vector<faiss::idx_t> knn(nq * k);
-    std::vector<std::vector<id_t>> knn_i32(nq, std::vector<id_t>(k));
     std::vector<data_t> dist(nq * k);
 
     int device = 1;
@@ -93,53 +89,20 @@ int main(int argc, char** argv) {
     faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, metric, config);
     gpuIndex.add(nb, base_vectors.data());
 
-    // query_timer.Reset();
-    // query_timer.Start();
-
-    // gpuIndex.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
-
-    // query_timer.Stop();
-    // std::cout << "[Query GT] Query search time: " << query_timer.GetTime() << std::endl;
-    // cout << "Query GT write to file: " << test_gt_path << endl;
-    // for (int i = 0; i < nq; ++i) {
-    //     for (int j = 0; j < k; ++j) {
-    //         knn_i32[i][j] = knn[i * k + j];
-    //     }
-    // }
-
-    // for (int i = 0; i < 10; ++i) {
-    //     for (int j = 0; j < k; ++j) {
-    //         std::cout << dist[i * k + j] << " ";
-    //     } std::cout << std::endl;
-    // }
-
-    // std::cout << "[Naive] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn_i32) << std::endl;
+    query_timer.Reset();    query_timer.Start();
+    gpuIndex.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
+    query_timer.Stop();
+    std::cout << "[Query] Using GT from file: " << test_gt_path << std::endl;
+    std::cout << "[Query] Search time: " << query_timer.GetTime() << std::endl;
+    std::cout << "[Query] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, utils::Nest(knn, nq, k)) << std::endl;
 
     knn.resize(nt * k);
-    knn_i32.resize(nt, std::vector<id_t>(k));
     dist.resize(nt * k);
-    query_timer.Reset();
-    query_timer.Start();
-
+    query_timer.Reset();    query_timer.Start();
     gpuIndex.search(nt, train_vectors.data(), k, dist.data(), knn.data());
-
     query_timer.Stop();
-    std::cout << "[Train] Train search time: " << query_timer.GetTime() << std::endl;
-    cout << "Using Train GT from file: " << train_gt_path << endl;
-    for (int i = 0; i < nt; ++i) {
-        for (int j = 0; j < k; ++j) {
-            knn_i32[i][j] = knn[i * k + j];
-        }
-    }
-
-    for (int i = 0; i < 10; ++i) {
-        for (int j = 0; j < k; ++j) {
-            std::cout << dist[i * k + j] << " ";
-        } std::cout << std::endl;
-    }
-
-    std::cout << "[Train] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn_i32) << std::endl;
-    cout << "Using Train GT from file: " << test_gt_path << endl;
+    std::cout << "[Train] Using GT from file: " << train_gt_path << std::endl;
+    std::cout << "[Train] Search time: " << query_timer.GetTime() << std::endl;
+    std::cout << "[Train] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, utils::Nest(knn, nt, k)) << std::endl;
     return 0;
 }
-// g++ test_gpu.cpp -std=c++17 -I ../include/ -Lbuild/ -Ofast -march=native -mtune=native -lrt -fopenmp -o test_gpu && ./test_gpu

@@ -65,4 +65,4 @@ target_link_libraries(test_gpu PUBLIC
 )
 
 
-# clear && rm CMakeCache.txt && cmake .. && make -j8
+# clear && rm CMakeCache.txt && cmake .. && make -j8 && ./test_gpu

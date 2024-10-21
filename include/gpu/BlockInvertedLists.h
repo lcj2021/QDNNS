@@ -36,38 +36,11 @@ struct BlockInvertedLists : InvertedLists {
 
     BlockInvertedLists();
 
-    size_t list_size(size_t list_no) const override;
-    const uint8_t* get_codes(size_t list_no) const override;
-    const idx_t* get_ids(size_t list_no) const override;
-    /// remove ids from the InvertedLists
-
-    // works only on empty BlockInvertedLists
-    // the codes should be of size ceil(n_entry / n_per_block) * block_size
-    // and padded with 0s
-    size_t add_entries(
-            size_t list_no,
-            size_t n_entry,
-            const idx_t* ids,
-            const uint8_t* code) override;
-
-    /// not implemented
-    void update_entries(
-            size_t list_no,
-            size_t offset,
-            size_t n_entry,
-            const idx_t* ids,
-            const uint8_t* code) override;
-
-    // also pads new data with 0s
-    void resize(size_t list_no, size_t new_size) override;
-
     ~BlockInvertedLists() override;
 };
 
 struct BlockInvertedListsIOHook : InvertedListsIOHook {
     BlockInvertedListsIOHook();
-    // void write(const InvertedLists* ils, IOWriter* f) const override;
-    // InvertedLists* read(IOReader* f, int io_flags) const override;
 };
 
 } // namespace faiss

@@ -29,12 +29,6 @@ struct InvertedListsIOHook {
     InvertedListsIOHook(const std::string& key, const std::string& classname);
 
     virtual ~InvertedListsIOHook() {}
-
-    /**************************** Manage the set of callbacks ******/
-
-    // transfers ownership
-    static void add_callback(InvertedListsIOHook*);
-    static InvertedListsIOHook* lookup_classname(const std::string& classname);
 };
 
 } // namespace faiss

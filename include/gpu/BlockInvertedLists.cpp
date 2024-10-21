@@ -25,55 +25,7 @@ BlockInvertedLists::BlockInvertedLists(
 BlockInvertedLists::BlockInvertedLists()
         : InvertedLists(0, InvertedLists::INVALID_CODE_SIZE) {}
 
-size_t BlockInvertedLists::add_entries(
-        size_t list_no,
-        size_t n_entry,
-        const idx_t* ids_in,
-        const uint8_t* code) {
-    if (n_entry == 0) {
-        return 0;
-    }
-    FAISS_THROW_IF_NOT(list_no < nlist);
-    size_t o = ids[list_no].size();
-    ids[list_no].resize(o + n_entry);
-    memcpy(&ids[list_no][o], ids_in, sizeof(ids_in[0]) * n_entry);
-    size_t n_block = (o + n_entry + n_per_block - 1) / n_per_block;
-    return o;
-}
-
-size_t BlockInvertedLists::list_size(size_t list_no) const {
-    assert(list_no < nlist);
-    return ids[list_no].size();
-}
-
-const uint8_t* BlockInvertedLists::get_codes(size_t list_no) const {
-    // assert(list_no < nlist);
-    // return codes[list_no].get();
-    return 0;
-}
-
-const idx_t* BlockInvertedLists::get_ids(size_t list_no) const {
-    assert(list_no < nlist);
-    return ids[list_no].data();
-}
-
-void BlockInvertedLists::resize(size_t list_no, size_t new_size) {
-    ids[list_no].resize(new_size);
-    size_t n_block = (new_size + n_per_block - 1) / n_per_block;
-    size_t new_nbytes = n_block * block_size;
-}
-
-void BlockInvertedLists::update_entries(
-        size_t,
-        size_t,
-        size_t,
-        const idx_t*,
-        const uint8_t*) {
-    FAISS_THROW_MSG("not implemented");
-}
-
 BlockInvertedLists::~BlockInvertedLists() {
-    // delete packer;
 }
 
 /**************************************************

@@ -42,20 +42,4 @@ static IOHookTable InvertedListsIOHook_table;
 
 } // namespace
 
-InvertedListsIOHook* InvertedListsIOHook::lookup_classname(
-        const std::string& classname) {
-    for (const auto& callback : InvertedListsIOHook_table) {
-        if (callback->classname == classname) {
-            return callback;
-        }
-    }
-    FAISS_THROW_FMT(
-            "read_InvertedLists: could not find classname %s",
-            classname.c_str());
-}
-
-void InvertedListsIOHook::add_callback(InvertedListsIOHook* cb) {
-    InvertedListsIOHook_table.push_back(cb);
-}
-
 } // namespace faiss

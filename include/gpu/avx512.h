@@ -13,8 +13,6 @@
 
 #include <platform_macros.h>
 
-#include <Heap.h>
-
 #ifdef __AVX512F__
 
 namespace faiss {

@@ -11,7 +11,6 @@
 
 #include <AuxIndexStructures.h>
 #include <FaissAssert.h>
-#include <Heap.h>
 #include <distances.h>
 #include <extra_distances.h>
 #include <utils.h>
@@ -21,39 +20,6 @@ namespace faiss {
 
 IndexFlat::IndexFlat(idx_t d, MetricType metric)
         : IndexFlatCodes(sizeof(float) * d, d, metric) {}
-
-void IndexFlat::search(
-        idx_t n,
-        const float* x,
-        idx_t k,
-        float* distances,
-        idx_t* labels,
-        const SearchParameters* params) const {
-    IDSelector* sel = params ? params->sel : nullptr;
-    FAISS_THROW_IF_NOT(k > 0);
-
-    // we see the distances and labels as heaps
-    if (metric_type == METRIC_INNER_PRODUCT) {
-        float_minheap_array_t res = {size_t(n), size_t(k), labels, distances};
-        knn_inner_product(x, get_xb(), d, n, ntotal, &res, sel);
-    } else if (metric_type == METRIC_L2) {
-        float_maxheap_array_t res = {size_t(n), size_t(k), labels, distances};
-        knn_L2sqr(x, get_xb(), d, n, ntotal, &res, nullptr, sel);
-    } else {
-        FAISS_THROW_IF_NOT(!sel); // TODO implement with selector
-        knn_extra_metrics(
-                x,
-                get_xb(),
-                d,
-                n,
-                ntotal,
-                metric_type,
-                metric_arg,
-                k,
-                distances,
-                labels);
-    }
-}
 
 void IndexFlat::compute_distance_subset(
         idx_t n,

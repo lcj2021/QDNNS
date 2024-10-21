@@ -9,8 +9,6 @@
 
 #include <platform_macros.h>
 
-#include <Heap.h>
-
 #if defined(__AVX2__) || defined(__aarch64__)
 
 namespace faiss {

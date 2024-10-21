@@ -22,14 +22,6 @@ struct IndexFlat : IndexFlatCodes {
             idx_t d, ///< dimensionality of the input vectors
             MetricType metric = METRIC_L2);
 
-    void search(
-            idx_t n,
-            const float* x,
-            idx_t k,
-            float* distances,
-            idx_t* labels,
-            const SearchParameters* params = nullptr) const override;
-
     void reconstruct(idx_t key, float* recons) const override;
 
     /** compute distance with a subset of vectors

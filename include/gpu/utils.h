@@ -22,7 +22,6 @@
 #include <vector>
 
 #include <platform_macros.h>
-#include <Heap.h>
 
 namespace faiss {
 

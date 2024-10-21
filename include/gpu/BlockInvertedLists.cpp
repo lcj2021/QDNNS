@@ -24,7 +24,6 @@ BlockInvertedLists::BlockInvertedLists(
           n_per_block(n_per_block),
           block_size(block_size) {
     ids.resize(nlist);
-    // codes.resize(nlist);
 }
 
 BlockInvertedLists::BlockInvertedLists()

@@ -9,6 +9,8 @@
 
 #include <cstdio>
 #include <memory>
+#include <cassert>
+#include <cstring>
 
 #include <FaissAssert.h>
 #include <utils.h>

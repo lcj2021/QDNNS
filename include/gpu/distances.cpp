@@ -750,8 +750,6 @@ void knn_inner_product(
         sel = nullptr;
     }
     if (auto sela = dynamic_cast<const IDSelectorArray*>(sel)) {
-        knn_inner_products_by_idx(
-                x, y, sela->ids, d, nx, ny, sela->n, k, vals, ids, 0);
         return;
     }
 
@@ -762,64 +760,6 @@ void knn_inner_product(
             }
         }
     }
-}
-
-void knn_inner_product(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        float_minheap_array_t* res,
-        const IDSelector* sel) {
-    FAISS_THROW_IF_NOT(nx == res->nh);
-    knn_inner_product(x, y, d, nx, ny, res->k, res->val, res->ids, sel);
-}
-
-void knn_L2sqr(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        size_t k,
-        float* vals,
-        int64_t* ids,
-        const float* y_norm2,
-        const IDSelector* sel) {
-    int64_t imin = 0;
-    if (auto selr = dynamic_cast<const IDSelectorRange*>(sel)) {
-        imin = std::max(selr->imin, int64_t(0));
-        int64_t imax = std::min(selr->imax, int64_t(ny));
-        ny = imax - imin;
-        y += d * imin;
-        sel = nullptr;
-    }
-    if (auto sela = dynamic_cast<const IDSelectorArray*>(sel)) {
-        knn_L2sqr_by_idx(x, y, sela->ids, d, nx, ny, sela->n, k, vals, ids, 0);
-        return;
-    }
-
-    if (imin != 0) {
-        for (size_t i = 0; i < nx * k; i++) {
-            if (ids[i] >= 0) {
-                ids[i] += imin;
-            }
-        }
-    }
-}
-
-void knn_L2sqr(
-        const float* x,
-        const float* y,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        float_maxheap_array_t* res,
-        const float* y_norm2,
-        const IDSelector* sel) {
-    FAISS_THROW_IF_NOT(res->nh == nx);
-    knn_L2sqr(x, y, d, nx, ny, res->k, res->val, res->ids, y_norm2, sel);
 }
 
 /***************************************************************************
@@ -913,83 +853,6 @@ void pairwise_indexed_inner_product(
         } else {
             dis[j] = -INFINITY;
         }
-    }
-}
-
-/* Find the nearest neighbors for nx queries in a set of ny vectors
-   indexed by ids. May be useful for re-ranking a pre-selected vector list */
-void knn_inner_products_by_idx(
-        const float* x,
-        const float* y,
-        const int64_t* ids,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        size_t nsubset,
-        size_t k,
-        float* res_vals,
-        int64_t* res_ids,
-        int64_t ld_ids) {
-    if (ld_ids < 0) {
-        ld_ids = ny;
-    }
-
-#pragma omp parallel for if (nx > 100)
-    for (int64_t i = 0; i < nx; i++) {
-        const float* x_ = x + i * d;
-        const int64_t* idsi = ids + i * ld_ids;
-        size_t j;
-        float* __restrict simi = res_vals + i * k;
-        int64_t* __restrict idxi = res_ids + i * k;
-        minheap_heapify(k, simi, idxi);
-
-        for (j = 0; j < nsubset; j++) {
-            if (idsi[j] < 0 || idsi[j] >= ny) {
-                break;
-            }
-            float ip = fvec_inner_product(x_, y + d * idsi[j], d);
-
-            if (ip > simi[0]) {
-                minheap_replace_top(k, simi, idxi, ip, idsi[j]);
-            }
-        }
-        minheap_reorder(k, simi, idxi);
-    }
-}
-
-void knn_L2sqr_by_idx(
-        const float* x,
-        const float* y,
-        const int64_t* __restrict ids,
-        size_t d,
-        size_t nx,
-        size_t ny,
-        size_t nsubset,
-        size_t k,
-        float* res_vals,
-        int64_t* res_ids,
-        int64_t ld_ids) {
-    if (ld_ids < 0) {
-        ld_ids = ny;
-    }
-#pragma omp parallel for if (nx > 100)
-    for (int64_t i = 0; i < nx; i++) {
-        const float* x_ = x + i * d;
-        const int64_t* __restrict idsi = ids + i * ld_ids;
-        float* __restrict simi = res_vals + i * k;
-        int64_t* __restrict idxi = res_ids + i * k;
-        maxheap_heapify(k, simi, idxi);
-        for (size_t j = 0; j < nsubset; j++) {
-            if (idsi[j] < 0 || idsi[j] >= ny) {
-                break;
-            }
-            float disij = fvec_L2sqr(x_, y + d * idsi[j], d);
-
-            if (disij < simi[0]) {
-                maxheap_replace_top(k, simi, idxi, disij, idsi[j]);
-            }
-        }
-        maxheap_reorder(k, simi, idxi);
     }
 }
 

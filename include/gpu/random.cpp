@@ -8,7 +8,6 @@
 // -*- c++ -*-
 
 #include <random.h>
-#include "distances.h"
 
 extern "C" {
 int sgemm_(

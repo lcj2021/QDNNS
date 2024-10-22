@@ -160,18 +160,6 @@ struct Index {
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const;
 
-    /** return the indexes of the k vectors closest to the query x.
-     *
-     * This function is identical as search but only return labels of
-     * neighbors.
-     * @param n           number of vectors
-     * @param x           input vectors to search, size n * d
-     * @param labels      output labels of the NNs, size n*k
-     * @param k           number of nearest neighbours
-     */
-    virtual void assign(idx_t n, const float* x, idx_t* labels, idx_t k = 1)
-            const;
-
     /// removes all elements from the database.
     virtual void reset() = 0;
 
@@ -202,28 +190,6 @@ struct Index {
      * @param recons      reconstucted vector (size ni * d)
      */
     virtual void reconstruct_n(idx_t i0, idx_t ni, float* recons) const;
-
-    /** Similar to search, but also reconstructs the stored vectors (or an
-     * approximation in the case of lossy coding) for the search results.
-     *
-     * If there are not enough results for a query, the resulting arrays
-     * is padded with -1s.
-     *
-     * @param n           number of vectors
-     * @param x           input vectors to search, size n * d
-     * @param k           number of extracted vectors
-     * @param distances   output pairwise distances, size n*k
-     * @param labels      output labels of the NNs, size n*k
-     * @param recons      reconstructed vectors size (n, k, d)
-     **/
-    virtual void search_and_reconstruct(
-            idx_t n,
-            const float* x,
-            idx_t k,
-            float* distances,
-            idx_t* labels,
-            float* recons,
-            const SearchParameters* params = nullptr) const;
 
     /** Computes a residual vector after indexing encoding.
      *

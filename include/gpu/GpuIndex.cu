@@ -197,23 +197,6 @@ void GpuIndex::addPage_(idx_t n, const float* x, const idx_t* ids) {
     }
 }
 
-void GpuIndex::assign(idx_t n, const float* x, idx_t* labels, idx_t k) const {
-    DeviceScope scope(config_.device);
-    FAISS_THROW_IF_NOT_MSG(this->is_trained, "Index not trained");
-
-    validateKSelect(k);
-
-    auto stream = resources_->getDefaultStream(config_.device);
-
-    // We need to create a throw-away buffer for distances, which we don't use
-    // but which we do need for the search call
-    DeviceTensor<float, 2, true> distances(
-            resources_.get(), makeTempAlloc(AllocType::Other, stream), {n, k});
-
-    // Forward to search
-    search(n, x, k, distances.data(), labels);
-}
-
 void GpuIndex::search(
         idx_t n,
         const float* x,
@@ -274,18 +257,6 @@ void GpuIndex::search(
     // Copy back if necessary
     fromDevice<float, 2>(outDistances, distances, stream);
     fromDevice<idx_t, 2>(outLabels, labels, stream);
-}
-
-void GpuIndex::search_and_reconstruct(
-        idx_t n,
-        const float* x,
-        idx_t k,
-        float* distances,
-        idx_t* labels,
-        float* recons,
-        const SearchParameters* params) const {
-    search(n, x, k, distances, labels, params);
-    reconstruct_batch(n * k, labels, recons);
 }
 
 void GpuIndex::searchNonPaged_(

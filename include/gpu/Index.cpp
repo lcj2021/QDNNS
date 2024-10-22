@@ -11,7 +11,6 @@
 
 #include <AuxIndexStructures.h>
 #include <FaissAssert.h>
-#include <distances.h>
 
 #include <cstring>
 
@@ -30,11 +29,6 @@ void Index::range_search(
         RangeSearchResult*,
         const SearchParameters* params) const {
     FAISS_THROW_MSG("range search not implemented");
-}
-
-void Index::assign(idx_t n, const float* x, idx_t* labels, idx_t k) const {
-    std::vector<float> distances(n * k);
-    search(n, x, k, distances.data(), labels);
 }
 
 void Index::add_with_ids(
@@ -69,32 +63,6 @@ void Index::reconstruct_n(idx_t i0, idx_t ni, float* recons) const {
 #pragma omp parallel for if (ni > 1000)
     for (idx_t i = 0; i < ni; i++) {
         reconstruct(i0 + i, recons + i * d);
-    }
-}
-
-void Index::search_and_reconstruct(
-        idx_t n,
-        const float* x,
-        idx_t k,
-        float* distances,
-        idx_t* labels,
-        float* recons,
-        const SearchParameters* params) const {
-    FAISS_THROW_IF_NOT(k > 0);
-
-    search(n, x, k, distances, labels, params);
-    for (idx_t i = 0; i < n; ++i) {
-        for (idx_t j = 0; j < k; ++j) {
-            idx_t ij = i * k + j;
-            idx_t key = labels[ij];
-            float* reconstructed = recons + ij * d;
-            if (key < 0) {
-                // Fill with NaNs
-                memset(reconstructed, -1, sizeof(*reconstructed) * d);
-            } else {
-                reconstruct(key, reconstructed);
-            }
-        }
     }
 }
 

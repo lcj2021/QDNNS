@@ -82,11 +82,6 @@ class GpuIndex : public faiss::Index {
     /// Handles paged adds if the add set is too large; calls addInternal_
     void add_with_ids(idx_t n, const float* x, const idx_t* ids) override;
 
-    /// `x` and `labels` can be resident on the CPU or any GPU; copies are
-    /// performed as needed
-    void assign(idx_t n, const float* x, idx_t* labels, idx_t k = 1)
-            const override;
-
     /// `x`, `distances` and `labels` can be resident on the CPU or any
     /// GPU; copies are performed as needed
     void search(
@@ -95,17 +90,6 @@ class GpuIndex : public faiss::Index {
             idx_t k,
             float* distances,
             idx_t* labels,
-            const SearchParameters* params = nullptr) const override;
-
-    /// `x`, `distances` and `labels` and `recons` can be resident on the CPU or
-    /// any GPU; copies are performed as needed
-    void search_and_reconstruct(
-            idx_t n,
-            const float* x,
-            idx_t k,
-            float* distances,
-            idx_t* labels,
-            float* recons,
             const SearchParameters* params = nullptr) const override;
 
     /// Overridden to force GPU indices to provide their own GPU-friendly

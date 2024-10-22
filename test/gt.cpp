@@ -2,7 +2,7 @@
 #include "utils/binary_io.hpp"
 #include "utils/resize.hpp"
 #include "utils/stimer.hpp"
-#include "utils/get_recall.hpp"
+#include "utils/recall.hpp"
 #include "distance.hpp"
 
 using data_t = float;

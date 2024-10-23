@@ -15,9 +15,9 @@
 #include <memory>
 #include <mutex>
 #include <atomic>
-#include <utils/binary.hpp>
+#include <utils/binary_io.hpp>
 #include <utils/resize.hpp>
-#include <utils/get_recall.hpp>
+#include <utils/recall.hpp>
 #include <algorithm>
 #include <stdexcept>
 #include <numeric>
@@ -77,21 +77,20 @@ namespace anns
 
       size_t check_stamp = 1000;
 
-      size_t num_clusters = 4096;   // Number of tokens
       size_t num_check = 100;     // 
-      size_t recall_at_k = 10;
+      int recall_at_k = 100;
 
       HNSW(size_t D, size_t max_elements, size_t M, size_t ef_construction, 
       std::string dataset,
-      size_t num_clusters,
+      int recall_at_k,
       size_t check_stamp,
       size_t random_seed = 100) noexcept: 
-        D_(D), Mmax_(M), Mmax0_(2 * M), ef_construction_(std::max(ef_construction, M)), random_seed_(random_seed), mult_(1 / log(1.0 * Mmax_)), rev_size_(1.0 / mult_), num_clusters(num_clusters), check_stamp(check_stamp)
+        D_(D), Mmax_(M), Mmax0_(2 * M), ef_construction_(std::max(ef_construction, M)), random_seed_(random_seed), mult_(1 / log(1.0 * Mmax_)), rev_size_(1.0 / mult_), recall_at_k(recall_at_k), check_stamp(check_stamp)
       {
         level_generator_.seed(random_seed);
 
         // std::string prefix = dataset + "."
-        //     "num_tokens_" + std::to_string(num_clusters) + "." +
+        //     "recall_at_" + std::to_string(recall_at_k) + "." +
         //     "ck_ts_" + std::to_string(check_stamp) + "." + 
         //     "ncheck_" + std::to_string(num_check);
 
@@ -102,7 +101,7 @@ namespace anns
       }
 
       HNSW(const std::vector<data_t>& base, const std::string& filename, std::string dataset,
-      size_t num_clusters,
+      int recall_at_k,
       size_t check_stamp,
       size_t random_seed = 100) noexcept
       {
@@ -142,29 +141,25 @@ namespace anns
           data_memory_.emplace_back(base.data() + i * D_);
         }
 
-        this->num_clusters = num_clusters;
+        this->recall_at_k = recall_at_k;
         this->check_stamp = check_stamp;
-
-        this->prefix = dataset + "."
-            "M_" + std::to_string(Mmax_) + "." 
-            "efc_" + std::to_string(ef_construction_) + "."
-            "efs_" + std::to_string(1000) + "."
-            "ck_ts_" + std::to_string(check_stamp) + "."
-            "ncheck_" + std::to_string(num_check) + "."
-            "recall@" + std::to_string(recall_at_k);
-
-        // std::cout << "check_stamp: " << check_stamp << std::endl;
+        this->dataset = dataset;
 
         std::string test_gt_path, train_gt_path; 
         if (dataset == "imagenet" || dataset == "wikipedia") {
-            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs";   
-            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs";
+            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";   
+            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
         } else {
-            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs";   
-            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs";
+            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu";   
+            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu";
         }
         std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
         std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
+        dimension_gt = 100;
+        num_test /= dimension_gt;
+        num_train /= dimension_gt;
+        std::cout << "num_test: " << num_test << std::endl;
+        std::cout << "num_train: " << num_train << std::endl;
 
         train_feats_nn.resize(num_train);
         test_feats_nn.resize(num_test);
@@ -289,7 +284,10 @@ namespace anns
 #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
         for (id_t id = 0; id < num_points; id++)
         {
-          BuildPoint(id, raw_data.data() + id * D_);
+            if (rand() % 10000 < 5) {
+                std::cout << "Building " << id << " / " << num_points << std::endl;
+            }
+            BuildPoint(id, raw_data.data() + id * D_);
         }
       }
 
@@ -307,7 +305,10 @@ namespace anns
 #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
         for (id_t id = 0; id < num_points; id++)
         {
-          BuildPoint(id, raw_data[id]);
+            if (rand() % 10000 < 5) {
+                std::cout << "Building " << id << " / " << num_points << std::endl;
+            }
+            BuildPoint(id, raw_data[id]);
         }
       }
 
@@ -434,6 +435,9 @@ namespace anns
             vid.emplace_back(te.second);
             dist.emplace_back(te.first);
             r.pop();
+          }
+          if (rand() % 1000 < 1) {
+            std::cerr << "Search " << i << " / " << nq << std::endl;
           }
         }
       }
@@ -743,6 +747,9 @@ namespace anns
             dist.emplace_back(te.first);
             r.pop();
           }
+          if (rand() % 1000 < 1) {
+            std::cout << "SearchGetData: " << i << " / " << nq << std::endl;
+          }
         }
       }
       
@@ -771,7 +778,7 @@ namespace anns
         bool is_checked = false;
 
         auto &vec_label = data_type == 1 ? test_label[qid] : train_label[qid];
-        auto &vec_feats_nn = data_type == 1 ? test_feats_nn[qid] : train_feats_nn[qid];
+        auto &vec_feats_hnns = data_type == 1 ? test_feats_nn[qid] : train_feats_nn[qid];
         auto &vec_feats_lgb = data_type == 1 ? test_feats_lgb[qid] : train_feats_lgb[qid];
         
         const auto &gt = data_type == 1 ? test_gt : train_gt;
@@ -800,7 +807,7 @@ namespace anns
                 num_lookback++;
               }
 
-              if (data_type && !is_label_get && comparison % 250 == 0 && candidate_set.size() >= 100) 
+              if (data_type && !is_label_get && comparison % 250 == 0 && candidate_set.size() >= num_check) 
               {
                 auto top_candidates_backup = top_candidates;
                 std::vector<id_t> knns;
@@ -833,9 +840,9 @@ namespace anns
                   knns.emplace_back(curr_el_pair.second);
                 }
                 std::reverse(knns.begin(), knns.end());
-                knns.resize(100);
+                knns.resize(num_check);
                 std::reverse(check_candidates.begin(), check_candidates.end());
-                check_candidates.resize(100);
+                check_candidates.resize(num_check);
 
                 for (int i = 0; i < check_candidates.size(); ++i) {
                   auto &[dist, vid] = check_candidates[i];
@@ -844,7 +851,7 @@ namespace anns
                 if (data_type) {
                     for (int d = 0; d < D_; ++d) {
                         vec_feats_lgb.emplace_back(data_point[d]);
-                        vec_feats_nn.emplace_back(data_point[d]);
+                        vec_feats_hnns.emplace_back(data_point[d]);
                     }
 
                     vec_feats_lgb.emplace_back(-dist_start);
@@ -854,12 +861,12 @@ namespace anns
                     vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
 
                     for (int i = 0; i < check_candidates.size(); ++i) {
-                        vec_feats_nn.emplace_back(check_candidates[i].first);
-                        // vec_feats_nn.emplace_back(check_candidates[i].first / dist_start);
+                        vec_feats_hnns.emplace_back(check_candidates[i].first);
+                        // vec_feats_hnns.emplace_back(check_candidates[i].first / dist_start);
                     }
-                    vec_feats_nn.emplace_back(num_lookback);
-                    vec_feats_nn.emplace_back(num_pop);
-                    vec_feats_nn.emplace_back(num_lb_update);
+                    vec_feats_hnns.emplace_back(num_lookback);
+                    vec_feats_hnns.emplace_back(num_pop);
+                    vec_feats_hnns.emplace_back(num_lb_update);
                 }
               }
 
@@ -889,38 +896,37 @@ namespace anns
             minimum_comparison = comparison;
             // std::cerr << "qid: " << qid << " | " << "comparison: " << comparison << std::endl;
         }
-        if (data_type && is_checked) {
+        if (data_type) {
             // vec_label = !is_label_get;
             vec_label.emplace_back(!is_label_get);
             vec_label.emplace_back(comparison);
         }
 
-        // if (rand() % 100 < 5) {
-        // // if (vec_label == 1) {
-        //     std::cerr << "qid: " << qid << " | label: " << vec_label 
-        //             << " | num_pop: " << num_pop
-        //             << " | num_lb_update: " << num_lb_update
-        //             << " | num_lookback: " << num_lookback << std::endl;
-        // }
-
         comparison_.fetch_add(comparison);
         return top_candidates;
       }
       
-      void SaveData()
+        void SaveData(size_t ef_search)
         {
             std::string data_prefix = "/home/zhengweiguo/liuchengjun/Bert-ANNS/data/";
+            this->prefix = dataset + "."
+                "M_" + std::to_string(Mmax_) + "." 
+                "efc_" + std::to_string(ef_construction_) + "."
+                "efs_" + std::to_string(ef_search) + "."
+                "ck_ts_" + std::to_string(check_stamp) + "."
+                "ncheck_" + std::to_string(num_check) + "."
+                "recall@" + std::to_string(recall_at_k);
 
             size_t train_label_postive = 0, test_label_postive = 0;
-            std::unordered_set<int> train_valid_ids;
             for (int i = 0; i < train_label.size(); ++i) {
+                assert(train_label[i].size() == 2);
                 if (train_label[i][0] == 0) continue;
                 train_label_postive += 1;
-                train_valid_ids.emplace(i);
             }
             std::cout << "train_label_postive: " << train_label_postive << std::endl;
-            for (auto label: test_label) {
-                if (label[0] == 0) continue;
+            for (int i = 0; i < test_label.size(); ++i) {
+                assert(test_label[i].size() == 2);
+                if (test_label[i][0] == 0) continue;
                 test_label_postive += 1;
             }
             std::cout << "test_label_postive: " << test_label_postive << std::endl;
@@ -933,7 +939,6 @@ namespace anns
             std::vector<std::vector<float>> train_feats_nn_valid, train_feats_lgb_valid;
 
             for (int i = 0; i < train_label.size(); ++i) {
-                // if (train_valid_ids.count(i)) continue;
                 train_label_valid.emplace_back(train_label[i]);
                 train_feats_nn_valid.emplace_back(train_feats_nn[i]);
                 train_feats_lgb_valid.emplace_back(train_feats_lgb[i]);

@@ -11,12 +11,13 @@ using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "imagenet";
-    // std::string dataset = "gist1m";
-    std::string dataset = "wikipedia";
+    std::string dataset = "gist1m";
+    // std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -75,14 +76,14 @@ int main(int argc, char** argv) {
     size_t efq = 1000;
     size_t k = 100;
     size_t check_stamp = 1000;
-    size_t num_clusters = 8192;
     std::cout << "efSearch: " << efq << std::endl;
 
     utils::STimer build_timer, query_timer;
-    size_t M = 32;
+    size_t M = 128;
     size_t ef_construction = 1000;
     std::string index_path = 
-        "../index/" + dataset + "."
+        // "../index/" + dataset + "."
+        "/data/guohaoran/tmp/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
     std::cout << "dataset: " << dataset << std::endl;
@@ -90,7 +91,7 @@ int main(int argc, char** argv) {
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
 
-    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, InnerProduct>> (d0, nb, M, ef_construction,
+    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, L2>> (d0, nb, M, ef_construction,
         dataset,
         k, check_stamp
     );
@@ -119,4 +120,4 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-// g++ hnsw_build.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp  && ./a.out
+// g++ hnsw_build.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp  && sudo chmod 777 ./a.out && sudo ./a.out

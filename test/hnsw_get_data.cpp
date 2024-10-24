@@ -11,7 +11,8 @@ using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
@@ -83,7 +84,8 @@ int main(int argc, char** argv) {
     size_t M = 32;
     size_t ef_construction = 1000;
     std::string index_path = 
-        "../index/" + dataset + "."
+        // "../index/" + dataset + "."
+        "/data/guohaoran/tmp/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
     std::cout << "dataset: " << dataset << std::endl;

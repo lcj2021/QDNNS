@@ -11,12 +11,13 @@ using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
-    // std::string dataset = "imagenet";
-    std::string dataset = "wikipedia";
+    std::string dataset = "imagenet";
+    // std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -26,9 +27,9 @@ int main(int argc, char** argv) {
     if (dataset == "imagenet" || dataset == "wikipedia") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
         distance = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -54,10 +55,10 @@ int main(int argc, char** argv) {
     nest_test_vectors.resize(nq / 1);
     nq = nest_test_vectors.size();
 
-    nest_train_vectors.resize(nt / 1);
+    nest_train_vectors.resize(nt / 10);
     nt = nest_train_vectors.size();
 
-    dbg = dtg = 100;
+    dbg = dtg = 1000;
     nbg = query_gt.size() / dbg;
     ntg = train_gt.size() / dtg;
 
@@ -76,15 +77,16 @@ int main(int argc, char** argv) {
     cout << "Dimension train_vector: " << dt << endl;
 
     size_t efq = 1000;
-    size_t k = 100;
+    size_t k = 1000;
     size_t check_stamp = 2000;
     size_t num_clusters = 8192;
 
     utils::STimer build_timer, query_timer;
-    size_t M = 32;
+    size_t M = 128;
     size_t ef_construction = 1000;
     std::string index_path = 
-        "../index/" + dataset + "."
+        // "../index/" + dataset + "."
+        "/data/guohaoran/tmp/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
     std::cout << "dataset: " << dataset << std::endl;

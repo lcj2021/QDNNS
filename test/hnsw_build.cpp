@@ -1,4 +1,5 @@
-#include <bits/stdc++.h>
+#include <string>
+#include <vector>
 #include "graph/hnsw.hpp"
 #include "utils/resize.hpp"
 #include "utils/stimer.hpp"
@@ -16,8 +17,10 @@ int main(int argc, char** argv)
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "imagenet";
-    std::string dataset = "gist1m";
+    // std::string dataset = "gist1m";
     // std::string dataset = "wikipedia";
+    std::string dataset = std::string(argv[1]);
+    size_t M = std::stol(argv[2]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -26,15 +29,15 @@ int main(int argc, char** argv)
     if (dataset == "imagenet" || dataset == "wikipedia") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
@@ -55,7 +58,7 @@ int main(int argc, char** argv)
     nest_train_vectors.resize(nt / 1);
     nt = nest_train_vectors.size();
 
-    dbg = dtg = 100;
+    dbg = dtg = 1000;
     nbg = query_gt.size() / dbg;
     ntg = train_gt.size() / dtg;
 
@@ -79,11 +82,10 @@ int main(int argc, char** argv)
     std::cout << "efSearch: " << efq << std::endl;
 
     utils::STimer build_timer, query_timer;
-    size_t M = 128;
     size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
-        "/data/guohaoran/tmp/index/" + dataset + "."
+        "/data/guohaoran/HNNS/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
     std::cout << "dataset: " << dataset << std::endl;
@@ -91,7 +93,7 @@ int main(int argc, char** argv)
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
 
-    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, L2>> (d0, nb, M, ef_construction,
+    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, InnerProduct>> (d0, nb, M, ef_construction,
         dataset,
         k, check_stamp
     );
@@ -120,4 +122,8 @@ int main(int argc, char** argv)
     return 0;
 }
 
-// g++ hnsw_build.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp  && sudo chmod 777 ./a.out && sudo ./a.out
+// g++ hnsw_build.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp -o hnsw_build && sudo chmod 777 ./hnsw_build
+// sudo ./hnsw_build wikipedia 96
+// sudo ./hnsw_build wikipedia 48
+// sudo ./hnsw_build imagenet 96
+// sudo ./hnsw_build imagenet 48

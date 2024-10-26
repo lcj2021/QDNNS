@@ -2,14 +2,12 @@
 #include <StandardGpuResources.h>
 #include <IndexUtils.h>
 #include <DeviceUtils.h>
-#include <sstream>
 #include <vector>
 
 #include "../utils/binary_io.hpp"
 #include "../utils/resize.hpp"
 #include "../utils/stimer.hpp"
 #include "../utils/recall.hpp"
-// #include "distance.hpp"
 
 using data_t = float;
 using id_t = uint32_t;
@@ -21,9 +19,9 @@ int main(int argc, char** argv)
 {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
     std::vector<id_t> query_gt, train_gt;
-    std::string dataset = "gist1m";
+    // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
-    // std::string dataset = "wikipedia";
+    std::string dataset = "wikipedia";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -78,7 +76,7 @@ int main(int argc, char** argv)
     cout << "Dimension query_vector: " << d1 << endl;
     cout << "Dimension train_vector: " << dt << endl;
 
-    size_t k = 100;
+    size_t k = 1;
 
     utils::STimer query_timer, train_timer;
     std::cout << "dataset: " << dataset << std::endl;
@@ -90,11 +88,11 @@ int main(int argc, char** argv)
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
-    faiss::gpu::GpuIndexFlat gpuIndex(&res, d0, metric, config);
-    gpuIndex.add(nb, base_vectors.data());
+    faiss::gpu::GpuIndexFlat gpu_index(&res, d0, metric, config);
+    gpu_index.add(nb, base_vectors.data());
 
     query_timer.Reset();    query_timer.Start();
-    gpuIndex.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
+    gpu_index.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
     query_timer.Stop();
     std::cout << "[Query][GPU] Using GT from file: " << test_gt_path << std::endl;
     std::cout << "[Query][GPU] Search time: " << query_timer.GetTime() << std::endl;
@@ -103,7 +101,7 @@ int main(int argc, char** argv)
     knn.resize(nt * k);
     dist.resize(nt * k);
     query_timer.Reset();    query_timer.Start();
-    gpuIndex.search(nt, train_vectors.data(), k, dist.data(), knn.data());
+    gpu_index.search(nt, train_vectors.data(), k, dist.data(), knn.data());
     query_timer.Stop();
     std::cout << "[Train][GPU] Using GT from file: " << train_gt_path << std::endl;
     std::cout << "[Train][GPU] Search time: " << query_timer.GetTime() << std::endl;

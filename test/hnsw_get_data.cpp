@@ -1,4 +1,5 @@
-#include <bits/stdc++.h>
+#include <string>
+#include <vector>
 #include "graph/hnsw.hpp"
 #include "utils/resize.hpp"
 #include "utils/stimer.hpp"
@@ -10,6 +11,7 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
+std::string save_prefix = "/data/guohaoran/HNNS/sample/";
 
 int main(int argc, char** argv) 
 {
@@ -17,7 +19,10 @@ int main(int argc, char** argv)
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
-    std::string dataset = "wikipedia";
+    // std::string dataset = "wikipedia";
+    std::string dataset = std::string(argv[1]);
+    size_t M = std::stol(argv[2]);
+    size_t efq = std::stol(argv[3]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -26,15 +31,15 @@ int main(int argc, char** argv)
     if (dataset == "imagenet" || dataset == "wikipedia") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
@@ -55,7 +60,7 @@ int main(int argc, char** argv)
     nest_train_vectors.resize(nt / 1);
     nt = nest_train_vectors.size();
 
-    dbg = dtg = 100;
+    dbg = dtg = 1000;
     nbg = query_gt.size() / dbg;
     ntg = train_gt.size() / dtg;
 
@@ -73,19 +78,16 @@ int main(int argc, char** argv)
     cout << "Dimension train GT: " << dtg << endl;
     cout << "Dimension train_vector: " << dt << endl;
 
-    size_t efq = 1000;
-    size_t k = 100;
+    size_t k = 1000;
     size_t check_stamp = 2000;
-    std::cout << "efSearch: " << efq << std::endl;
 
     utils::STimer build_timer;
     utils::STimer query_timer;
     utils::STimer train_timer;
-    size_t M = 32;
     size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
-        "/data/guohaoran/tmp/index/" + dataset + "."
+        "/data/guohaoran/HNNS/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
     std::cout << "dataset: " << dataset << std::endl;
@@ -123,10 +125,15 @@ int main(int argc, char** argv)
     query_timer.Stop();
     std::cout << "[Train][HNSW] Using GT from file: " << train_gt_path << std::endl;
     std::cout << "[Train][HNSW] Search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Train][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
+    for (int ck = 1; ck <= k; ck *= 10) {
+        std::cout << "[Train][HNSW] Recall@" << ck << ": " << utils::GetRecall(ck, dtg, train_gt, knn) << std::endl;
+    }
+    // std::cout << "[Train][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
     std::cout << "[Train][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nt << std::endl;
-    hnsw->SaveData(efq);
+    hnsw->SaveData(save_prefix, efq);
     return 0;
 }
 
-// g++ hnsw_get_data.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp  && ./a.out
+// g++ hnsw_get_data.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp -o hnsw_get_data && sudo chmod 777 hnsw_get_data
+// sudo ./hnsw_get_data gist1m 256 1000
+// sudo ./hnsw_get_data imagenet 128 3000

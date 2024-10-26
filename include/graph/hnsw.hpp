@@ -147,15 +147,15 @@ namespace anns
 
         std::string test_gt_path, train_gt_path; 
         if (dataset == "imagenet" || dataset == "wikipedia") {
-            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";   
-            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
+            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";   
+            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
         } else {
-            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu";   
-            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu";
+            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";   
+            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
         }
         std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
         std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
-        dimension_gt = 100;
+        dimension_gt = 1000;
         num_test /= dimension_gt;
         num_train /= dimension_gt;
         std::cout << "num_test: " << num_test << std::endl;
@@ -284,7 +284,7 @@ namespace anns
 #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
         for (id_t id = 0; id < num_points; id++)
         {
-            if (rand() % 10000 < 5) {
+            if (rand() % 100000 < 1) {
                 std::cout << "Building " << id << " / " << num_points << std::endl;
             }
             BuildPoint(id, raw_data.data() + id * D_);
@@ -305,7 +305,7 @@ namespace anns
 #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
         for (id_t id = 0; id < num_points; id++)
         {
-            if (rand() % 10000 < 5) {
+            if (rand() % 100000 < 1) {
                 std::cout << "Building " << id << " / " << num_points << std::endl;
             }
             BuildPoint(id, raw_data[id]);
@@ -436,7 +436,7 @@ namespace anns
             dist.emplace_back(te.first);
             r.pop();
           }
-          if (rand() % 1000 < 1) {
+          if (rand() % 10000 < 1) {
             std::cerr << "Search " << i << " / " << nq << std::endl;
           }
         }
@@ -747,7 +747,7 @@ namespace anns
             dist.emplace_back(te.first);
             r.pop();
           }
-          if (rand() % 1000 < 1) {
+          if (rand() % 10000 < 10) {
             std::cout << "SearchGetData: " << i << " / " << nq << std::endl;
           }
         }
@@ -757,7 +757,6 @@ namespace anns
       std::priority_queue<std::pair<float, id_t>> SearchBaseLayerGetData(id_t ep_id, const data_t *data_point, int level, size_t ef, id_t qid, int data_type)
       {
         size_t comparison = 0;
-        size_t minimum_comparison = 0;
         size_t num_lookback = 0;
         size_t num_pop = 0;
         size_t num_lb_update = 0;
@@ -774,7 +773,7 @@ namespace anns
         float low_bound = dist;
         float dist_start = dist;    // For SIGMOD20 lightgbm
 
-        bool is_label_get = false;  // label: minimum comparisons to get 100% recall
+        bool is_full_recall = false;  // label: minimum comparisons to get 100% recall
         bool is_checked = false;
 
         auto &vec_label = data_type == 1 ? test_label[qid] : train_label[qid];
@@ -786,119 +785,101 @@ namespace anns
 
         while (candidate_set.size())
         {
-          auto curr_el_pair = candidate_set.top();
-          if (-curr_el_pair.first > low_bound && top_candidates.size() == ef)
-            break;
-          candidate_set.pop();
-          id_t curr_node_id = curr_el_pair.second;
-          std::unique_lock<std::mutex> lock(*link_list_locks_[curr_node_id]);
-          const auto& neighbors = link_lists_[curr_node_id][level];
+            auto curr_el_pair = candidate_set.top();
+            if (-curr_el_pair.first > low_bound && top_candidates.size() == ef)
+                break;
+            candidate_set.pop();
+            id_t curr_node_id = curr_el_pair.second;
+            std::unique_lock<std::mutex> lock(*link_list_locks_[curr_node_id]);
+            const auto& neighbors = link_lists_[curr_node_id][level];
 
 
-          for (id_t neighbor_id: neighbors)
-          {
-            if (mass_visited[neighbor_id] == false)
+            for (id_t neighbor_id: neighbors)
             {
-              mass_visited[neighbor_id] = true;
+                if (mass_visited[neighbor_id] == false)
+                {
+                    mass_visited[neighbor_id] = true;
 
-              float dist = distance(data_point, data_memory_[neighbor_id], D_);
-              comparison++;
-              if (!is_checked && dist > dist_start) {
-                num_lookback++;
-              }
-
-              if (data_type && !is_label_get && comparison % 250 == 0 && candidate_set.size() >= num_check) 
-              {
-                auto top_candidates_backup = top_candidates;
-                std::vector<id_t> knns;
-                while (top_candidates_backup.size()) {
-                  auto curr_el_pair = top_candidates_backup.top();
-                  top_candidates_backup.pop();
-                  knns.emplace_back(curr_el_pair.second);
-                }
-                std::reverse(knns.begin(), knns.end());
-                knns.resize(recall_at_k);
-
-                auto recall = utils::GetRecall(recall_at_k, dimension_gt, gt, knns, qid);
-                if (recall == 1.00) {
-                    minimum_comparison = comparison;
-                    is_label_get = true;
-                }
-              }
-
-              if (data_type && comparison == check_stamp) 
-              {
-                is_checked = true;
-                auto top_candidates_backup = top_candidates;
-                std::vector<std::pair<float, id_t>> check_candidates;
-                std::vector<id_t> knns;
-
-                while (top_candidates_backup.size()) {
-                  auto curr_el_pair = top_candidates_backup.top();
-                  top_candidates_backup.pop();
-                  check_candidates.emplace_back(curr_el_pair);
-                  knns.emplace_back(curr_el_pair.second);
-                }
-                std::reverse(knns.begin(), knns.end());
-                knns.resize(num_check);
-                std::reverse(check_candidates.begin(), check_candidates.end());
-                check_candidates.resize(num_check);
-
-                for (int i = 0; i < check_candidates.size(); ++i) {
-                  auto &[dist, vid] = check_candidates[i];
-                }
-
-                if (data_type) {
-                    for (int d = 0; d < D_; ++d) {
-                        vec_feats_lgb.emplace_back(data_point[d]);
-                        vec_feats_hnns.emplace_back(data_point[d]);
+                    float dist = distance(data_point, data_memory_[neighbor_id], D_);
+                    comparison++;
+                    if (!is_checked && dist > dist_start) {
+                        num_lookback++;
                     }
 
-                    vec_feats_lgb.emplace_back(-dist_start);
-                    vec_feats_lgb.emplace_back(-check_candidates[0].first);
-                    vec_feats_lgb.emplace_back(-check_candidates[9].first);
-                    vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
-                    vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
+                    if (data_type && comparison == check_stamp) 
+                    {
+                        is_checked = true;
+                        auto top_candidates_backup = top_candidates;
+                        std::vector<std::pair<float, id_t>> check_candidates;
 
-                    for (int i = 0; i < check_candidates.size(); ++i) {
-                        vec_feats_hnns.emplace_back(check_candidates[i].first);
-                        // vec_feats_hnns.emplace_back(check_candidates[i].first / dist_start);
+                        while (top_candidates_backup.size()) {
+                            auto curr_el_pair = top_candidates_backup.top();
+                            top_candidates_backup.pop();
+                            check_candidates.emplace_back(curr_el_pair);
+                        }
+                        std::reverse(check_candidates.begin(), check_candidates.end());
+                        check_candidates.resize(num_check);
+
+                        if (data_type) {
+                            for (int d = 0; d < D_; ++d) {
+                                vec_feats_lgb.emplace_back(data_point[d]);
+                                vec_feats_hnns.emplace_back(data_point[d]);
+                            }
+
+                            vec_feats_lgb.emplace_back(-dist_start);
+                            vec_feats_lgb.emplace_back(-check_candidates[0].first);
+                            vec_feats_lgb.emplace_back(-check_candidates[9].first);
+                            vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
+                            vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
+
+                            for (int i = 0; i < check_candidates.size(); ++i) {
+                                vec_feats_hnns.emplace_back(check_candidates[i].first);
+                                // vec_feats_hnns.emplace_back(check_candidates[i].first / dist_start);
+                            }
+                            vec_feats_hnns.emplace_back(num_lookback);
+                            vec_feats_hnns.emplace_back(num_pop);
+                            vec_feats_hnns.emplace_back(num_lb_update);
+                        }
                     }
-                    vec_feats_hnns.emplace_back(num_lookback);
-                    vec_feats_hnns.emplace_back(num_pop);
-                    vec_feats_hnns.emplace_back(num_lb_update);
-                }
-              }
 
-              /// @brief If neighbor is closer than farest vector in top result, and result.size still less than ef
-              if (top_candidates.top().first > dist || top_candidates.size() < ef)
-              {
-                candidate_set.emplace(-dist, neighbor_id);
-                top_candidates.emplace(dist, neighbor_id);
+                    /// @brief If neighbor is closer than farest vector in top result, and result.size still less than ef
+                    if (top_candidates.top().first > dist || top_candidates.size() < ef)
+                    {
+                        candidate_set.emplace(-dist, neighbor_id);
+                        top_candidates.emplace(dist, neighbor_id);
 
-                // give up farest result so far
-                if (top_candidates.size() > ef) {
-                    top_candidates.pop();
-                    num_pop++;
-                }
-                  
+                        // give up farest result so far
+                        if (top_candidates.size() > ef) {
+                            top_candidates.pop();
+                            num_pop++;
+                        }
+                        
 
-                if (top_candidates.size()) {
-                    low_bound = top_candidates.top().first;
-                    num_lb_update++;
+                        if (top_candidates.size()) {
+                            low_bound = top_candidates.top().first;
+                            num_lb_update++;
+                        }
+                    }
                 }
-              }
             }
-          }
         }
 
-        if (!is_label_get) {
-            minimum_comparison = comparison;
-            // std::cerr << "qid: " << qid << " | " << "comparison: " << comparison << std::endl;
+        auto top_candidates_backup = top_candidates;
+        std::vector<id_t> knns;
+        while (top_candidates_backup.size()) {
+            auto curr_el_pair = top_candidates_backup.top();
+            top_candidates_backup.pop();
+            knns.emplace_back(curr_el_pair.second);
+        }
+        std::reverse(knns.begin(), knns.end());
+        knns.resize(recall_at_k);
+
+        auto recall = utils::GetRecall(recall_at_k, dimension_gt, gt, knns, qid);
+        if (recall >= 0.999) {
+            is_full_recall = true;
         }
         if (data_type) {
-            // vec_label = !is_label_get;
-            vec_label.emplace_back(!is_label_get);
+            vec_label.emplace_back(!is_full_recall);
             vec_label.emplace_back(comparison);
         }
 
@@ -906,9 +887,8 @@ namespace anns
         return top_candidates;
       }
       
-        void SaveData(size_t ef_search)
+        void SaveData(std::string data_prefix, size_t ef_search)
         {
-            std::string data_prefix = "/home/zhengweiguo/liuchengjun/Bert-ANNS/data/";
             this->prefix = dataset + "."
                 "M_" + std::to_string(Mmax_) + "." 
                 "efc_" + std::to_string(ef_construction_) + "."

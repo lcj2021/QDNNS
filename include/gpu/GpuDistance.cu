@@ -24,7 +24,6 @@
 #include <GpuResources.h>
 #include <DeviceUtils.h>
 #include <FaissAssert.h>
-#include <Heap.h>
 #include <Distance.cuh>
 #include <ConversionOperators.cuh>
 #include <CopyUtils.cuh>
@@ -369,51 +368,50 @@ void bfKnn(GpuResourcesProvider* prov, const GpuDistanceParams& args) {
                 "RAFT has not been compiled into the current version so it cannot be used.");
     } else
 #endif
-            if (args.vectorType == DistanceDataType::F32) {
+    if (args.vectorType == DistanceDataType::F32) {
         bfKnnConvert<float>(prov, args);
-    } else if (args.vectorType == DistanceDataType::F16) {
     } else {
         FAISS_THROW_MSG("unknown vectorType");
     }
 }
 
-template <class C>
-void bfKnn_shard_database(
-        GpuResourcesProvider* prov,
-        const GpuDistanceParams& args,
-        size_t shard_size,
-        size_t distance_size) {
-    std::vector<typename C::T> heaps_distances;
-    if (args.ignoreOutDistances) {
-        heaps_distances.resize(args.numQueries * args.k, 0);
-    }
-    HeapArray<C> heaps = {
-            (size_t)args.numQueries,
-            (size_t)args.k,
-            (typename C::TI*)args.outIndices,
-            args.ignoreOutDistances ? heaps_distances.data()
-                                    : args.outDistances};
-    heaps.heapify();
-    std::vector<typename C::TI> labels(args.numQueries * args.k);
-    std::vector<typename C::T> distances(args.numQueries * args.k);
-    GpuDistanceParams args_batch = args;
-    args_batch.outDistances = distances.data();
-    args_batch.ignoreOutDistances = false;
-    args_batch.outIndices = labels.data();
-    for (idx_t i = 0; i < args.numVectors; i += shard_size) {
-        args_batch.numVectors = min(shard_size, args.numVectors - i);
-        args_batch.vectors =
-                (char*)args.vectors + distance_size * args.dims * i;
-        args_batch.vectorNorms =
-                args.vectorNorms ? args.vectorNorms + i : nullptr;
-        bfKnn(prov, args_batch);
-        for (auto& label : labels) {
-            label += i;
-        }
-        heaps.addn_with_ids(args.k, distances.data(), labels.data(), args.k);
-    }
-    heaps.reorder();
-}
+// template <class C>
+// void bfKnn_shard_database(
+//         GpuResourcesProvider* prov,
+//         const GpuDistanceParams& args,
+//         size_t shard_size,
+//         size_t distance_size) {
+//     std::vector<typename C::T> heaps_distances;
+//     if (args.ignoreOutDistances) {
+//         heaps_distances.resize(args.numQueries * args.k, 0);
+//     }
+//     HeapArray<C> heaps = {
+//             (size_t)args.numQueries,
+//             (size_t)args.k,
+//             (typename C::TI*)args.outIndices,
+//             args.ignoreOutDistances ? heaps_distances.data()
+//                                     : args.outDistances};
+//     heaps.heapify();
+//     std::vector<typename C::TI> labels(args.numQueries * args.k);
+//     std::vector<typename C::T> distances(args.numQueries * args.k);
+//     GpuDistanceParams args_batch = args;
+//     args_batch.outDistances = distances.data();
+//     args_batch.ignoreOutDistances = false;
+//     args_batch.outIndices = labels.data();
+//     for (idx_t i = 0; i < args.numVectors; i += shard_size) {
+//         args_batch.numVectors = min(shard_size, args.numVectors - i);
+//         args_batch.vectors =
+//                 (char*)args.vectors + distance_size * args.dims * i;
+//         args_batch.vectorNorms =
+//                 args.vectorNorms ? args.vectorNorms + i : nullptr;
+//         bfKnn(prov, args_batch);
+//         for (auto& label : labels) {
+//             label += i;
+//         }
+//         heaps.addn_with_ids(args.k, distances.data(), labels.data(), args.k);
+//     }
+//     heaps.reorder();
+// }
 
 void bfKnn_single_query_shard(
         GpuResourcesProvider* prov,
@@ -449,27 +447,27 @@ void bfKnn_single_query_shard(
         bfKnn(prov, args);
         return;
     }
-    if (is_similarity_metric(args.metric)) {
-        if (args.outIndicesType == IndicesDataType::I64) {
-            bfKnn_shard_database<CMin<float, int64_t>>(
-                    prov, args, shard_size, distance_size);
-        } else if (args.outIndicesType == IndicesDataType::I32) {
-            bfKnn_shard_database<CMin<float, int32_t>>(
-                    prov, args, shard_size, distance_size);
-        } else {
-            FAISS_THROW_MSG("bfKnn_tiling: unknown outIndicesType");
-        }
-    } else {
-        if (args.outIndicesType == IndicesDataType::I64) {
-            bfKnn_shard_database<CMax<float, int64_t>>(
-                    prov, args, shard_size, distance_size);
-        } else if (args.outIndicesType == IndicesDataType::I32) {
-            bfKnn_shard_database<CMax<float, int32_t>>(
-                    prov, args, shard_size, distance_size);
-        } else {
-            FAISS_THROW_MSG("bfKnn_tiling: unknown outIndicesType");
-        }
-    }
+    // if (is_similarity_metric(args.metric)) {
+    //     if (args.outIndicesType == IndicesDataType::I64) {
+    //         bfKnn_shard_database<CMin<float, int64_t>>(
+    //                 prov, args, shard_size, distance_size);
+    //     } else if (args.outIndicesType == IndicesDataType::I32) {
+    //         bfKnn_shard_database<CMin<float, int32_t>>(
+    //                 prov, args, shard_size, distance_size);
+    //     } else {
+    //         FAISS_THROW_MSG("bfKnn_tiling: unknown outIndicesType");
+    //     }
+    // } else {
+    //     if (args.outIndicesType == IndicesDataType::I64) {
+    //         bfKnn_shard_database<CMax<float, int64_t>>(
+    //                 prov, args, shard_size, distance_size);
+    //     } else if (args.outIndicesType == IndicesDataType::I32) {
+    //         bfKnn_shard_database<CMax<float, int32_t>>(
+    //                 prov, args, shard_size, distance_size);
+    //     } else {
+    //         FAISS_THROW_MSG("bfKnn_tiling: unknown outIndicesType");
+    //     }
+    // }
 }
 
 void bfKnn_tiling(

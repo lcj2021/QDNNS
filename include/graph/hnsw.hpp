@@ -4,30 +4,25 @@
 #include <random>
 #include <iostream>
 #include <fstream>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <map>
-#include <cmath>
 #include <queue>
 #include <memory>
 #include <mutex>
-#include <atomic>
 #include <utils/binary_io.hpp>
 #include <utils/resize.hpp>
 #include <utils/recall.hpp>
 #include <algorithm>
 #include <stdexcept>
-#include <numeric>
-#include <omp.h>
+#include <limits>
 
 #ifdef _MSC_VER
 #include <immintrin.h>
 #else
 #include <x86intrin.h>
 #endif
+
+#include <atomic>
+#include <omp.h>
 
 namespace anns
 {
@@ -874,12 +869,9 @@ namespace anns
         std::reverse(knns.begin(), knns.end());
         knns.resize(recall_at_k);
 
-        auto recall = utils::GetRecall(recall_at_k, dimension_gt, gt, knns, qid);
-        if (recall >= 0.999) {
-            is_full_recall = true;
-        }
+        auto recall_cnt = utils::GetRecallCount(recall_at_k, dimension_gt, gt, knns, qid);
         if (data_type) {
-            vec_label.emplace_back(!is_full_recall);
+            vec_label.emplace_back(recall_cnt);
             vec_label.emplace_back(comparison);
         }
 
@@ -897,20 +889,22 @@ namespace anns
                 "ncheck_" + std::to_string(num_check) + "."
                 "recall@" + std::to_string(recall_at_k);
 
+            size_t threshold = 999;
             size_t train_label_postive = 0, test_label_postive = 0;
             for (int i = 0; i < train_label.size(); ++i) {
                 assert(train_label[i].size() == 2);
-                if (train_label[i][0] == 0) continue;
+                if (train_label[i][0] < threshold) continue;
                 train_label_postive += 1;
             }
             std::cout << "train_label_postive: " << train_label_postive << std::endl;
             for (int i = 0; i < test_label.size(); ++i) {
                 assert(test_label[i].size() == 2);
-                if (test_label[i][0] == 0) continue;
+                if (test_label[i][0] < threshold) continue;
                 test_label_postive += 1;
             }
             std::cout << "test_label_postive: " << test_label_postive << std::endl;
 
+            std::cout << "Saving to: " << data_prefix + this->prefix << std::endl;
             utils::WriteToFile<int>(utils::Flatten(test_label), {test_label.size(), test_label[0].size()}, data_prefix + this->prefix + ".test_label.ivecs");
             utils::WriteToFile<float>(utils::Flatten(test_feats_nn), {test_feats_nn.size(), test_feats_nn[0].size()}, data_prefix + this->prefix + ".test_feats_nn.fvecs");
             // utils::WriteToFile<float>(utils::Flatten(test_feats_lgb), {test_feats_lgb.size(), test_feats_lgb[0].size()}, data_prefix + this->prefix + ".test_feats_lgb.fvecs");

@@ -2,7 +2,7 @@
 #include <vector>
 #include "graph/hnsw.hpp"
 #include "utils/resize.hpp"
-#include "utils/stimer.hpp"
+#include "utils/timer.hpp"
 #include "utils/recall.hpp"
 #include "distance.hpp"
 
@@ -81,9 +81,8 @@ int main(int argc, char** argv)
     size_t k = 1000;
     size_t check_stamp = 2000;
 
-    utils::STimer build_timer;
-    utils::STimer query_timer;
-    utils::STimer train_timer;
+    utils::Timer build_timer;
+    utils::Timer query_timer;
     size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
@@ -134,6 +133,5 @@ int main(int argc, char** argv)
     return 0;
 }
 
-// g++ hnsw_get_data.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp -o hnsw_get_data && sudo chmod 777 hnsw_get_data
 // sudo ./hnsw_get_data gist1m 256 1000
 // sudo ./hnsw_get_data imagenet 128 3000

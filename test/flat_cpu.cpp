@@ -1,7 +1,7 @@
 #include <algorithm>
 #include "utils/binary_io.hpp"
 #include "utils/resize.hpp"
-#include "utils/stimer.hpp"
+#include "utils/timer.hpp"
 #include "utils/recall.hpp"
 #include "flat/IndexFlat.hpp"
 #include "distance.hpp"
@@ -80,7 +80,7 @@ int main(int argc, char** argv)
     size_t k = 1'000;
     size_t num_threads_ = 96;
 
-    utils::STimer query_timer;
+    utils::Timer query_timer;
     std::cout << "dataset: " << dataset << std::endl;
 
     std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
@@ -106,5 +106,3 @@ int main(int argc, char** argv)
 
     return 0;
 }
-
-// g++ flat.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp  && ./a.out

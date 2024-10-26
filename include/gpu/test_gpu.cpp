@@ -6,7 +6,7 @@
 
 #include "../utils/binary_io.hpp"
 #include "../utils/resize.hpp"
-#include "../utils/stimer.hpp"
+#include "../utils/timer.hpp"
 #include "../utils/recall.hpp"
 
 using data_t = float;
@@ -78,7 +78,7 @@ int main(int argc, char** argv)
 
     size_t k = 1;
 
-    utils::STimer query_timer, train_timer;
+    utils::Timer query_timer, train_timer;
     std::cout << "dataset: " << dataset << std::endl;
 
     std::vector<faiss::idx_t> knn(nq * k);

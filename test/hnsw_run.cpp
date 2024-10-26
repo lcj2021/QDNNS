@@ -2,7 +2,7 @@
 #include <vector>
 #include "graph/hnsw.hpp"
 #include "utils/resize.hpp"
-#include "utils/stimer.hpp"
+#include "utils/timer.hpp"
 #include "utils/recall.hpp"
 #include "distance.hpp"
 
@@ -84,7 +84,7 @@ int main(int argc, char** argv)
 
     size_t check_stamp = 2000;
 
-    utils::STimer build_timer, query_timer;
+    utils::Timer build_timer, query_timer;
     size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
@@ -136,5 +136,4 @@ int main(int argc, char** argv)
     return 0;
 }
 
-// g++ hnsw_run.cpp -std=c++17 -I ../include/ -Ofast -march=native -mtune=native -lrt -fopenmp -o hnsw_run
 // ./hnsw_run wikipedia 48 1000 1000

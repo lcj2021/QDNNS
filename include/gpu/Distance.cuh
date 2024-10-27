@@ -226,6 +226,7 @@ void bfKnnOnDevice(
     // pure k-selection kernel.
     if ((metric == faiss::MetricType::METRIC_L2) ||
         (metric == faiss::MetricType::METRIC_Lp && metricArg == 2)) {
+    // if (false) {
         runL2Distance(
                 resources,
                 stream,
@@ -238,6 +239,7 @@ void bfKnnOnDevice(
                 outDistances,
                 outIndices);
     } else if (metric == faiss::MetricType::METRIC_INNER_PRODUCT) {
+    // } else if (false) {
         runIPDistance(
                 resources,
                 stream,
@@ -346,6 +348,27 @@ void bfKnnOnDevice(
                     tQueriesDimInnermost,
                     k,
                     JaccardSimilarity(),
+                    outDistances,
+                    outIndices);
+        } else if ((metric == faiss::MetricType::METRIC_L2) ||
+        (metric == faiss::MetricType::METRIC_Lp && metricArg == 2)) {
+            runGeneralDistance(
+                    resources,
+                    stream,
+                    tVectorsDimInnermost,
+                    tQueriesDimInnermost,
+                    k,
+                    L2Distance(),
+                    outDistances,
+                    outIndices);
+        } else if (metric == faiss::MetricType::METRIC_INNER_PRODUCT) {
+            runGeneralDistance(
+                    resources,
+                    stream,
+                    tVectorsDimInnermost,
+                    tQueriesDimInnermost,
+                    k,
+                    IPDistance(),
                     outDistances,
                     outIndices);
         } else {

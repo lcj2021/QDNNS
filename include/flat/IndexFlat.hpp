@@ -17,7 +17,7 @@ namespace anns
 namespace flat
 {
 
-    template <typename data_t, float (*distance)(const data_t *, const data_t *, size_t)>
+    template <typename data_t>
     class IndexFlat
     {
 
@@ -26,8 +26,10 @@ namespace flat
         size_t num_threads_{1};
         
         std::vector<data_t> *base_vectors = nullptr;
+        float (*distance)(const data_t *, const data_t *, size_t) = nullptr;
 
-        IndexFlat(const std::vector<data_t>& base, size_t D_) noexcept: D_(D_)
+        IndexFlat(const std::vector<data_t>& base, size_t D_, float (*distance)(const data_t *, const data_t *, size_t)) 
+            noexcept: D_(D_), distance(distance)
         {
             base_vectors = (std::vector<data_t>*)&base;    // std::vector<data_t>& base
         }

@@ -3,6 +3,7 @@
 #include <IndexUtils.h>
 #include <DeviceUtils.h>
 #include <vector>
+#include <numeric>
 
 #include "../utils/binary_io.hpp"
 #include "../utils/resize.hpp"
@@ -14,6 +15,7 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
+std::string idx_prefix = "/data/guohaoran/HNNS/checkpoint/";
 
 int main(int argc, char** argv) 
 {
@@ -21,7 +23,12 @@ int main(int argc, char** argv)
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
-    std::string dataset = "wikipedia";
+    // std::string dataset = "wikipedia";
+    std::string dataset = std::string(argv[1]);
+    size_t M = std::stol(argv[2]);
+    size_t efq = std::stol(argv[3]);
+    size_t k = std::stol(argv[4]);
+    size_t threshold = std::stol(argv[5]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -76,7 +83,29 @@ int main(int argc, char** argv)
     cout << "Dimension query_vector: " << d1 << endl;
     cout << "Dimension train_vector: " << dt << endl;
 
-    size_t k = 1;
+    size_t check_stamp = 2000;
+    size_t num_check = 100;
+    size_t ef_construction = 1000;
+
+    std::string idx_path = idx_prefix + dataset + "."
+            "M_" + std::to_string(M) + "." 
+            "efc_" + std::to_string(ef_construction) + "."
+            "efs_" + std::to_string(efq) + "."
+            "ck_ts_" + std::to_string(check_stamp) + "."
+            "ncheck_" + std::to_string(num_check) + "."
+            "recall@" + std::to_string(1000) + "."
+            "thr_" + std::to_string(threshold) + ".hnns_gpu_idx.ivecs";
+    // std::vector<id_t> gpu_idx;
+    // utils::LoadFromFile(gpu_idx, idx_path);
+
+    // std::vector<std::vector<data_t>> nest_test_vectors_gpu;
+    // for (int i = 0; i < nest_test_vectors.size(); ++i) {
+    //     // if (gpu_idx[i] == 0) continue;
+    //     nest_test_vectors_gpu.emplace_back(nest_test_vectors[i]);
+    // }
+    // auto queries_vectors_gpu = utils::Flatten(nest_test_vectors_gpu);
+    // std::swap(nest_test_vectors, nest_test_vectors_gpu);
+    // nq = nest_test_vectors_gpu.size();
 
     utils::Timer query_timer, train_timer;
     std::cout << "dataset: " << dataset << std::endl;
@@ -93,18 +122,35 @@ int main(int argc, char** argv)
 
     query_timer.Reset();    query_timer.Start();
     gpu_index.search(nq, queries_vectors.data(), k, dist.data(), knn.data());
+    // gpu_index.search(nq, queries_vectors_gpu.data(), k, dist.data(), knn.data());
     query_timer.Stop();
+    auto nested_knn = utils::Nest(knn, nq, k);
     std::cout << "[Query][GPU] Using GT from file: " << test_gt_path << std::endl;
     std::cout << "[Query][GPU] Search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Query][GPU] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, utils::Nest(knn, nq, k)) << std::endl;
+    // std::cout << "[Query][GPU] Recall@" << 1 << ": " << utils::GetRecall(1, dbg, query_gt, nested_knn) << std::endl;
+    for (int ck = 1; ck <= k; ck *= 10) {
+        std::cout << "[Query][GPU] Recall@" << ck << ": " << utils::GetRecall(ck, dbg, query_gt, nested_knn) << std::endl;
+    }
+
+    // size_t num_recall = 0;
+    // for (int i = 0, j = 0; i < gpu_idx.size(); ++i) {
+    //     // if (gpu_idx[i] == 0) continue;
+    //     num_recall += utils::GetRecallCount(k, dbg, query_gt, nested_knn[j++], i);
+    // }
+    // std::cout << "nq: " << nq << std::endl;
+    // std::cout << "[Query][HNSW] avg recall: " << num_recall << ", " << num_recall / (double)nq << std::endl;
 
     knn.resize(nt * k);
     dist.resize(nt * k);
     query_timer.Reset();    query_timer.Start();
     gpu_index.search(nt, train_vectors.data(), k, dist.data(), knn.data());
     query_timer.Stop();
+    nested_knn = utils::Nest(knn, nq, k);
     std::cout << "[Train][GPU] Using GT from file: " << train_gt_path << std::endl;
     std::cout << "[Train][GPU] Search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Train][GPU] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, utils::Nest(knn, nt, k)) << std::endl;
+    // std::cout << "[Train][GPU] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, utils::Nest(knn, nt, k)) << std::endl;
+    for (int ck = 1; ck <= k; ck *= 10) {
+        std::cout << "[Train][GPU] Recall@" << ck << ": " << utils::GetRecall(ck, dtg, train_gt, nested_knn) << std::endl;
+    }
     return 0;
 }

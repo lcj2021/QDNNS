@@ -85,7 +85,7 @@ int main(int argc, char** argv)
 
     std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
     std::vector<std::vector<data_t>> dist(nq, std::vector<data_t>(k));
-    anns::flat::IndexFlat<data_t, InnerProduct> index(base_vectors, d0);
+    anns::flat::IndexFlat<data_t> index(base_vectors, d0, distance);
     index.SetNumThreads(num_threads_);
 
     query_timer.Reset();

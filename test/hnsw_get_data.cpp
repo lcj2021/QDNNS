@@ -135,3 +135,4 @@ int main(int argc, char** argv)
 
 // sudo ./hnsw_get_data gist1m 256 1000
 // sudo ./hnsw_get_data imagenet 128 3000
+// sudo ./hnsw_get_data wikipedia 128 1000

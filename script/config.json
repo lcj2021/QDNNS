@@ -1,14 +1,27 @@
 {
     "imagenet": {
         "M": 96,
-        "efs": 3000
+        "efs": 3000,
+        "dim": 768
     },
     "gist1m": {
         "M": 256,
-        "efs": 3000
+        "efs": 3000,
+        "dim": 960
     },
     "wikipedia": {
         "M": 128,
-        "efs": 1000
+        "efs": 1000,
+        "dim": 1024
+    },
+    "deep100m": {
+        "M": 32,
+        "efs": 1000,
+        "dim": 96
+    },
+    "datacomp-image": {
+        "M": 48,
+        "efs": 1000,
+        "dim": 768
     }
 }

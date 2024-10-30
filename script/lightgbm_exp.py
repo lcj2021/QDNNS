@@ -1,23 +1,27 @@
 # conda activate /home/zhengweiguo/miniconda3/envs/lcj_bert
 import lightgbm as lgb
 import numpy as np
+import pandas as pd
 from sklearn.model_selection import train_test_split
 from binary_io import *
 import json
 import os
 
-dataset = 'gist1m'
 dataset = 'imagenet'
 dataset = 'wikipedia'
+dataset = 'gist1m'
+dataset = 'deep100m'
+dataset = 'datacomp-image'
 config = json.loads(open('config.json').read())
 M, efs = config[dataset]["M"], config[dataset]["efs"]
+dim = config[dataset]["dim"]
 efc = 1000
 ck_ts = 2000
 k = 1000
-threshold = 983
+threshold = 980
 
-data_prefix = '/data/guohaoran/HNNS/sample/'
-checkpoint_prefix = '/data/guohaoran/HNNS/checkpoint/'
+data_prefix = '/data/disk1/liuchengjun/HNNS/sample/'
+checkpoint_prefix = '/data/disk1/liuchengjun/HNNS/checkpoint/'
 prefix = f'{dataset}.M_{M}.efc_{efc}.efs_{efs}.ck_ts_{ck_ts}.ncheck_100.recall@{k}'
 checkpoint_path = f'{checkpoint_prefix}{prefix}.thr_{threshold}.txt'
 
@@ -34,6 +38,24 @@ test_comps = ivecs_read(f'{data_prefix}{prefix}.test_label.ivecs')[:, 1]
 print(np.sum(test_label), np.sum(train_label))
 # print(len(train_feature[0]), train_feature[0][-101:])
 
+offset = 0
+feat_query = train_feature[:, offset: offset + dim]
+offset += dim
+feat_dist = train_feature[:, offset: offset + 100]
+offset += 100
+feat_update = train_feature[:, offset: offset + 3]
+offset += 3
+assert offset == len(train_feature[0])
+
+query_cols = [f"query_{i}" for i in range(dim)]
+dist_cols = [f"dist_{i}" for i in range(100)]
+update_cols = [f"update_{i}" for i in range(3)]
+
+df_query = pd.DataFrame(feat_query, columns=query_cols)
+df_dist = pd.DataFrame(feat_dist, columns=dist_cols)
+df_update = pd.DataFrame(feat_update, columns=update_cols)
+
+df = pd.concat([df_query, df_dist, df_update], axis = 1)
 
 ##################################################  ##################################################
 
@@ -56,7 +78,8 @@ if os.path.exists(checkpoint_path):
 else:
     print(f'[Checkpoint] {checkpoint_path} not exist!')
     print('[Checkpoint] Training!')
-    gbm = lgb.train(params, lgb.Dataset(train_feature, label=train_label))
+    gbm = lgb.train(params, lgb.Dataset(df.values, label=train_label))
+    # gbm = lgb.train(params, lgb.Dataset(train_feature, label=train_label))
     gbm.save_model(checkpoint_path)
     print('[Checkpoint] Done!')
 
@@ -64,12 +87,26 @@ train_pred = gbm.predict(train_feature)
 pct50 = np.median(train_pred)
 print(f'pct50 threshold: {pct50}')
 
+importance = gbm.feature_importance()
+feature_names = df.columns
+query_imp, update_imp, dist_imp = 0, 0, 0
+for f, imp in zip(feature_names, importance):
+    if f.startswith('query'):
+        query_imp += imp
+    elif f.startswith('update'):
+        update_imp += imp
+    elif f.startswith('dist'):
+        dist_imp += imp
+    # print(f, imp)
+print(f'importance query: {query_imp / dim}, update: {update_imp / 3}, dist: {dist_imp / 100}')
+
 ##################################################  ##################################################
 
 from sklearn.metrics import recall_score
 import time
 import numpy as np
-from sklearn.metrics import recall_score
+from sklearn.metrics import recall_score, roc_auc_score
+from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.integrate import trapezoid as trapz
@@ -113,12 +150,12 @@ plt.show()
 train_number_recall_mn = np.min(train_number_recall)
 hist, bins = np.histogram(train_number_recall, bins = range(0, 1000 + 1))
 plt.bar(bins[: -1], hist, width = 1)
-plt.xlabel('train_number_recall')
+plt.xlabel('train_number_recall / 1000 nearest neighbors')
 plt.xlim([train_number_recall_mn - 10, 1000])
 plt.ylim(0.1)
 plt.yscale('log')
 plt.ylabel('Frequency')
-plt.title('Frequency Distribution of train_number_recall')
+plt.title(f'{prefix}\nFrequency Distribution of train_number_recall')
 print(f'train_number_recall_mn: {train_number_recall_mn}')
 fig_path = f'{prefix}.recall_hist'
 plt.savefig(fig_path + '.png', dpi=300)
@@ -145,8 +182,17 @@ cbar.set_label('Number of points (log10)')
 fig_path = f'{prefix}.Comp_R'
 plt.savefig(fig_path + '.png', dpi=300)
 plt.show()
-for R in range(950, 1001):
-    print(f'avg comparison for {R/1000}: {np.mean(train_comps[train_number_recall == R]):.2f}')
+# for R in range(950, 1001):
+#     print(f'avg comparison for {R/1000}: {np.mean(train_comps[train_number_recall == R]):.2f}')
+
+# pearson coef r
+r, p = pearsonr(train_number_recall, train_comps)
+print(f'pearsonr: {r:.2f} | p: {p:.2f}')
+
+# roc_auc score, roc_auc_score
+from sklearn.metrics import roc_auc_score
+roc_auc_score = roc_auc_score(test_label, label_pred)
+print(f'roc_auc_score: {roc_auc_score:.2f}')
 
 ##################################################  ##################################################
 

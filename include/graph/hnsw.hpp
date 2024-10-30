@@ -30,7 +30,7 @@ namespace anns
   namespace graph
   {
 
-    template <typename data_t, float (*distance)(const data_t *, const data_t *, size_t)>
+    template <typename data_t>
     class HNSW
     {
 
@@ -47,6 +47,7 @@ namespace anns
       int max_level_{0};
       id_t enterpoint_node_{MAGIC_VEC_ID};
       int random_seed_{100};
+      float (*distance)(const data_t *, const data_t *, size_t) = nullptr;
 
       std::vector<int> element_levels_; // keeps level of each element
       std::vector<std::vector<std::vector<id_t>>> link_lists_;
@@ -79,6 +80,7 @@ namespace anns
       std::string dataset,
       int recall_at_k,
       size_t check_stamp,
+      float (*distance)(const data_t *, const data_t *, size_t),
       size_t random_seed = 100) noexcept: 
         D_(D), Mmax_(M), Mmax0_(2 * M), ef_construction_(std::max(ef_construction, M)), random_seed_(random_seed), mult_(1 / log(1.0 * Mmax_)), rev_size_(1.0 / mult_), recall_at_k(recall_at_k), check_stamp(check_stamp)
       {
@@ -98,7 +100,8 @@ namespace anns
       HNSW(const std::vector<data_t>& base, const std::string& filename, std::string dataset,
       int recall_at_k,
       size_t check_stamp,
-      size_t random_seed = 100) noexcept
+      float (*distance)(const data_t *, const data_t *, size_t),
+      size_t random_seed = 100) noexcept: distance(distance)
       {
         std::ifstream in(filename, std::ios::binary);
         in.read(reinterpret_cast<char*>(&cur_element_count_), sizeof(cur_element_count_));
@@ -141,7 +144,8 @@ namespace anns
         this->dataset = dataset;
 
         std::string test_gt_path, train_gt_path; 
-        if (dataset == "imagenet" || dataset == "wikipedia") {
+        if (dataset == "imagenet" || dataset == "wikipedia"
+            || dataset == "datacomp-image" || dataset == "datacomp-text") {
             test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";   
             train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
         } else {

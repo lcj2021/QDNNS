@@ -11,6 +11,7 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
+float (*metric)(const data_t *, const data_t *, size_t) = nullptr;
 
 int main(int argc, char** argv) 
 {
@@ -26,25 +27,26 @@ int main(int argc, char** argv)
     std::string test_gt_path;
     std::string train_vectors_path;
     std::string train_gt_path;
-    if (dataset == "imagenet" || dataset == "wikipedia") {
+    if (dataset == "imagenet" || dataset == "wikipedia" 
+        || dataset == "datacomp-image" || dataset == "datacomp-text") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        metric = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
+        metric = L2;
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
     auto [nq, d1] = utils::LoadFromFile(queries_vectors, test_vectors_path);
     auto [nbg, dbg] = utils::LoadFromFile(query_gt, test_gt_path);
     auto [nt, dt] = utils::LoadFromFile(train_vectors, train_vectors_path);
-    auto [ntg, dtg] = utils::LoadFromFile(train_gt, train_gt_path);
 
     auto nest_test_vectors = utils::Nest(std::move(queries_vectors), nq, d1);
     auto nest_train_vectors = utils::Nest(std::move(train_vectors), nt, dt);
@@ -58,34 +60,31 @@ int main(int argc, char** argv)
     nest_train_vectors.resize(nt / 1);
     nt = nest_train_vectors.size();
 
-    dbg = dtg = 1000;
+    dbg = 1000;
     nbg = query_gt.size() / dbg;
-    ntg = train_gt.size() / dtg;
 
     cout << "Load Data Done!" << endl;
 
     cout << "Base Vectors: " << nb << endl;
     cout << "Queries Vectors: " << nq << endl;
     cout << "Base GT Vectors: " << nbg << endl;
-    cout << "Train GT Vectors: " << ntg << endl;
     cout << "Train Vectors: " << nt << endl;
 
     cout << "Dimension base_vector: " << d0 << endl;
     cout << "Dimension query_vector: " << d1 << endl;
     cout << "Dimension query GT: " << dbg << endl;
-    cout << "Dimension train GT: " << dtg << endl;
     cout << "Dimension train_vector: " << dt << endl;
 
     size_t efq = 1000;
-    size_t k = 100;
-    size_t check_stamp = 1000;
+    size_t k = 1000;
+    size_t check_stamp = 2000;
     std::cout << "efSearch: " << efq << std::endl;
 
     utils::Timer build_timer, query_timer;
     size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
-        "/data/guohaoran/HNNS/index/" + dataset + "."
+        "/data/disk1/liuchengjun/HNNS/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
     std::cout << "dataset: " << dataset << std::endl;
@@ -93,9 +92,8 @@ int main(int argc, char** argv)
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
 
-    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, InnerProduct>> (d0, nb, M, ef_construction,
-        dataset,
-        k, check_stamp
+    auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (d0, nb, M, ef_construction,
+        dataset, k, check_stamp, metric
     );
     hnsw->SetNumThreads(96);
 

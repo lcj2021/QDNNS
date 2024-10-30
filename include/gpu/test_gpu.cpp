@@ -15,7 +15,7 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
-std::string idx_prefix = "/data/guohaoran/HNNS/checkpoint/";
+std::string idx_prefix = "/data/disk1/liuchengjun/HNNS/checkpoint/";
 
 int main(int argc, char** argv) 
 {
@@ -35,7 +35,8 @@ int main(int argc, char** argv)
     std::string train_vectors_path;
     std::string train_gt_path;
     faiss::MetricType metric;
-    if (dataset == "imagenet" || dataset == "wikipedia") {
+    if (dataset == "imagenet" || dataset == "wikipedia" 
+        || dataset == "datacomp-image" || dataset == "datacomp-text") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
@@ -66,10 +67,11 @@ int main(int argc, char** argv)
     nest_test_vectors.resize(nq);
     nq = nest_test_vectors.size();
 
-    nest_train_vectors.resize(nt);
+    nest_train_vectors.resize(nt / 4);
     nt = nest_train_vectors.size();
 
-    dbg = dtg = 1000;
+    dbg = 1000;
+    dtg = 1000;
     nbg = query_gt.size() / dbg;
     ntg = train_gt.size() / dtg;
     
@@ -127,7 +129,6 @@ int main(int argc, char** argv)
     auto nested_knn = utils::Nest(knn, nq, k);
     std::cout << "[Query][GPU] Using GT from file: " << test_gt_path << std::endl;
     std::cout << "[Query][GPU] Search time: " << query_timer.GetTime() << std::endl;
-    // std::cout << "[Query][GPU] Recall@" << 1 << ": " << utils::GetRecall(1, dbg, query_gt, nested_knn) << std::endl;
     for (int ck = 1; ck <= k; ck *= 10) {
         std::cout << "[Query][GPU] Recall@" << ck << ": " << utils::GetRecall(ck, dbg, query_gt, nested_knn) << std::endl;
     }
@@ -148,7 +149,6 @@ int main(int argc, char** argv)
     nested_knn = utils::Nest(knn, nq, k);
     std::cout << "[Train][GPU] Using GT from file: " << train_gt_path << std::endl;
     std::cout << "[Train][GPU] Search time: " << query_timer.GetTime() << std::endl;
-    // std::cout << "[Train][GPU] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, utils::Nest(knn, nt, k)) << std::endl;
     for (int ck = 1; ck <= k; ck *= 10) {
         std::cout << "[Train][GPU] Recall@" << ck << ": " << utils::GetRecall(ck, dtg, train_gt, nested_knn) << std::endl;
     }

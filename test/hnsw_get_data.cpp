@@ -11,7 +11,8 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
-std::string save_prefix = "/data/guohaoran/HNNS/sample/";
+std::string save_prefix = "/data/disk1/liuchengjun/HNNS/sample/";
+float (*metric)(const data_t *, const data_t *, size_t) = nullptr;
 
 int main(int argc, char** argv) 
 {
@@ -34,12 +35,14 @@ int main(int argc, char** argv)
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        metric = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
+        metric = L2;
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
@@ -86,7 +89,7 @@ int main(int argc, char** argv)
     size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
-        "/data/guohaoran/HNNS/index/" + dataset + "."
+        "/data/disk1/liuchengjun/HNNS/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
     std::cout << "dataset: " << dataset << std::endl;
@@ -94,9 +97,9 @@ int main(int argc, char** argv)
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
 
-    auto hnsw = std::make_unique<anns::graph::HNSW<data_t, InnerProduct>> (
+    auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (
         base_vectors, index_path, dataset,
-        k, check_stamp);
+        k, check_stamp, metric);
     hnsw->SetNumThreads(96);
 
     build_timer.Start();
@@ -136,3 +139,4 @@ int main(int argc, char** argv)
 // sudo ./hnsw_get_data gist1m 256 1000
 // sudo ./hnsw_get_data imagenet 128 3000
 // sudo ./hnsw_get_data wikipedia 128 1000
+// sudo ./hnsw_get_data deep100m 32 1000

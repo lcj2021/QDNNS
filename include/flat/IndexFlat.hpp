@@ -84,5 +84,5 @@ namespace flat
         }
     };
 
-}; // namespace graph
+}; // namespace flat
 }; // namespace index

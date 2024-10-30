@@ -11,6 +11,7 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
+float (*metric)(const data_t *, const data_t *, size_t) = nullptr;
 
 int main(int argc, char** argv) 
 {
@@ -18,13 +19,13 @@ int main(int argc, char** argv)
     // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
     // std::string dataset = "wikipedia";
-    std::string dataset = "datacomp-image";
+    // std::string dataset = "datacomp-image";
+    std::string dataset = "deep100m";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
     std::string train_vectors_path;
     std::string train_gt_path;
-    float (*distance)(const data_t *, const data_t *, size_t) = nullptr;
     if (dataset == "imagenet" || dataset == "wikipedia" 
         || dataset == "datacomp-image" || dataset == "datacomp-text") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
@@ -32,14 +33,14 @@ int main(int argc, char** argv)
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
-        distance = InnerProduct;
+        metric = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu";
-        distance = L2;
+        metric = L2;
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
@@ -76,7 +77,7 @@ int main(int argc, char** argv)
 
     std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
     std::vector<std::vector<data_t>> dist(nq, std::vector<data_t>(k));
-    anns::flat::IndexFlat<data_t> index(base_vectors, d0, distance);
+    anns::flat::IndexFlat<data_t> index(base_vectors, d0, metric);
     index.SetNumThreads(num_threads_);
 
     query_timer.Reset();
@@ -87,7 +88,7 @@ int main(int argc, char** argv)
     utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size() * k, 1}, train_gt_path);
     std::cout << "[Train][FlatCPU] Writing GT to file: " << train_gt_path << std::endl;
     std::cout << "[Train][FlatCPU] Search time: " << query_timer.GetTime() << std::endl;
-    
+
     query_timer.Reset();
     query_timer.Start();
     index.Search(nest_test_vectors, k, knn, dist);

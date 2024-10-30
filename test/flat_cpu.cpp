@@ -11,6 +11,7 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
+float (*metric)(const data_t *, const data_t *, size_t) = nullptr;
 
 int main(int argc, char** argv) 
 {
@@ -18,27 +19,28 @@ int main(int argc, char** argv)
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
-    std::string dataset = "wikipedia";
+    // std::string dataset = "wikipedia";
+    std::string dataset = "datacomp-image";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
     std::string train_vectors_path;
     std::string train_gt_path;
-    float (*distance)(const data_t *, const data_t *, size_t) = nullptr;
-    if (dataset == "imagenet" || dataset == "wikipedia") {
+    if (dataset == "imagenet" || dataset == "wikipedia" 
+        || dataset == "datacomp-image" || dataset == "datacomp-text") {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
-        distance = InnerProduct;
+        metric = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
         train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.1000";
-        distance = L2;
+        metric = L2;
     }
 
     auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
@@ -59,7 +61,8 @@ int main(int argc, char** argv)
     nest_train_vectors.resize(nt / 10000);
     nt = nest_train_vectors.size();
 
-    dbg = dtg = 1000;
+    dbg = 1000;
+    dtg = 1000;
     nbg = query_gt.size() / dbg;
     ntg = train_gt.size() / dtg;
 
@@ -78,14 +81,14 @@ int main(int argc, char** argv)
     cout << "Dimension train_vector: " << dt << endl;
 
     size_t k = 1'000;
-    size_t num_threads_ = 96;
+    size_t num_threads_ = 4;
 
     utils::Timer query_timer;
     std::cout << "dataset: " << dataset << std::endl;
 
     std::vector<std::vector<id_t>> knn(nq, std::vector<id_t>(k));
     std::vector<std::vector<data_t>> dist(nq, std::vector<data_t>(k));
-    anns::flat::IndexFlat<data_t> index(base_vectors, d0, distance);
+    anns::flat::IndexFlat<data_t> index(base_vectors, d0, metric);
     index.SetNumThreads(num_threads_);
 
     query_timer.Reset();
@@ -96,13 +99,13 @@ int main(int argc, char** argv)
     std::cout << "[Query][FlatCPU] Search time: " << query_timer.GetTime() << std::endl;
     std::cout << "[Query][FlatCPU] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
 
-    query_timer.Reset();
-    query_timer.Start();
-    index.Search(nest_train_vectors, k, knn, dist);
-    query_timer.Stop();
-    std::cout << "[Train][FlatCPU] Using GT from file: " << train_gt_path << std::endl;
-    std::cout << "[Train][FlatCPU] Search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Train][FlatCPU] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
+    // query_timer.Reset();
+    // query_timer.Start();
+    // index.Search(nest_train_vectors, k, knn, dist);
+    // query_timer.Stop();
+    // std::cout << "[Train][FlatCPU] Using GT from file: " << train_gt_path << std::endl;
+    // std::cout << "[Train][FlatCPU] Search time: " << query_timer.GetTime() << std::endl;
+    // std::cout << "[Train][FlatCPU] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
 
     return 0;
 }

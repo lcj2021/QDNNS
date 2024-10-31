@@ -20,7 +20,8 @@ int main(int argc, char** argv)
     // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
     // std::string dataset = "wikipedia";
-    std::string dataset = "datacomp-image";
+    // std::string dataset = "datacomp-image";
+    std::string dataset = "deep100m";
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -37,9 +38,9 @@ int main(int argc, char** argv)
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.1000";
+        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
         train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.1000";
+        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
         metric = L2;
     }
 

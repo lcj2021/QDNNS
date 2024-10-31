@@ -435,6 +435,7 @@ namespace anns
             dist.emplace_back(te.first);
             r.pop();
           }
+          std::reverse(vid.begin(), vid.end());
           if (rand() % 10000 < 1) {
             std::cerr << "Search " << i << " / " << nq << std::endl;
           }
@@ -746,6 +747,7 @@ namespace anns
             dist.emplace_back(te.first);
             r.pop();
           }
+          std::reverse(vid.begin(), vid.end());
           if (rand() % 10000 < 10) {
             std::cout << "SearchGetData: " << i << " / " << nq << std::endl;
           }

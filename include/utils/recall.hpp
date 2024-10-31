@@ -23,7 +23,8 @@ double GetRecall(size_t k, size_t dimension_gt, const std::vector<id_t> & ground
     for (size_t q = 0; q < nq; q++) {
         // const size_t actual_k = knn_results[q].size();
         std::unordered_set<id_t> st(ground_truth.begin() + q * dimension_gt, ground_truth.begin() + q * dimension_gt + k);
-        for (const auto & id : knn_results[q]) {
+        for (size_t i = 0; i < std::min(k, knn_results[q].size()); ++i) {
+            auto id = knn_results[q][i];
             if (st.count(id)) {
                 ok ++;
             }
@@ -43,7 +44,8 @@ double GetRecall(size_t k, size_t dimension_gt, const std::vector<id_t> & ground
                 std::is_same<TI, int64_t>::value || std::is_same<TI, uint64_t>::value, "Type index must be int32/uint32 or int64/uint64");
     size_t ok = 0;
     std::unordered_set<id_t> st(ground_truth.begin() + qid * dimension_gt, ground_truth.begin() + qid * dimension_gt + k);
-    for (const auto & id : knn_results) {
+    for (size_t i = 0; i < std::min(k, knn_results.size()); ++i) {
+        auto id = knn_results[i];
         if (st.count(id)) {
             ok ++;
         }
@@ -62,7 +64,8 @@ size_t GetRecallCount(size_t k, size_t dimension_gt, const std::vector<id_t> & g
                 std::is_same<TI, int64_t>::value || std::is_same<TI, uint64_t>::value, "Type index must be int32/uint32 or int64/uint64");
     size_t ok = 0;
     std::unordered_set<id_t> st(ground_truth.begin() + qid * dimension_gt, ground_truth.begin() + qid * dimension_gt + k);
-    for (const auto & id : knn_results) {
+    for (size_t i = 0; i < std::min(k, knn_results.size()); ++i) {
+        auto id = knn_results[i];
         if (st.count(id)) {
             ok ++;
         }

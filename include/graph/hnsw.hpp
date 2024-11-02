@@ -30,12 +30,16 @@ namespace anns
 
   namespace graph
   {
-    template <typename data_t>
     struct IntermediateResult
     {
-        std::priority_queue<std::pair<float, id_t>> top_candidates, candidate_set;
         std::vector<bool> mass_visited;
+        std::priority_queue<std::pair<float, id_t>> top_candidates, candidate_set;
         bool ready = false;
+        std::vector<id_t> visited;
+        IntermediateResult(size_t check_stamp)
+        {
+            visited.reserve(check_stamp);
+        }
     };
 
     template <typename data_t>
@@ -75,7 +79,7 @@ namespace anns
       std::vector<std::vector<float>> test_feats_lgb;
       std::vector<std::vector<int>> train_label;
       std::vector<std::vector<int>> test_label;
-      std::vector<IntermediateResult<data_t>> test_inter_results;
+      std::vector<IntermediateResult> test_inter_results;
 
       std::vector<id_t> test_gt, train_gt;
       id_t dimension_gt, num_test, num_train;
@@ -177,7 +181,7 @@ namespace anns
         test_feats_lgb.resize(num_test);
         train_label.resize(num_train);
         test_label.resize(num_test);
-        test_inter_results.resize(num_test);
+        test_inter_results.resize(num_test, IntermediateResult(check_stamp));
 
         std::string model_path = "/data/disk1/liuchengjun/HNNS/checkpoint/" + dataset + 
             ".M_" + std::to_string(Mmax_) + ".efc_" + std::to_string(ef_construction_) + 
@@ -698,55 +702,54 @@ namespace anns
         return top_candidates;
       }
 
-      /// Codes below are for data collection
-      std::priority_queue<std::pair<float, id_t>> SearchGetData(const data_t *query_data, size_t k, size_t ef, id_t qid, int data_type)
-      {
-        assert(ef >= k && "ef > k!");
-
-        if (cur_element_count_ == 0)
-          return std::priority_queue<std::pair<float, id_t>>();
-
-        size_t comparison = 0;
-        id_t cur_obj = enterpoint_node_;
-        float cur_dist = distance(query_data, data_memory_[enterpoint_node_], D_);
-        comparison++;
-
-        for (int lev = element_levels_[enterpoint_node_]; lev > 0; lev--)
+        /// Codes below are for data collection
+        std::priority_queue<std::pair<float, id_t>> SearchGetData(const data_t *query_data, size_t k, size_t ef, id_t qid, int data_type)
         {
-          // find the closet node in upper layers
-          bool changed = true;
-          while (changed)
-          {
-            changed = false;
-            const auto& neighbors = link_lists_[cur_obj][lev];
-            size_t num_neighbors = neighbors.size();
+            assert(ef >= k && "ef > k!");
 
-            for (size_t i = 0; i < num_neighbors; i++)
+            if (cur_element_count_ == 0)
+                return std::priority_queue<std::pair<float, id_t>>();
+
+            size_t comparison = 0;
+            id_t cur_obj = enterpoint_node_;
+            float cur_dist = distance(query_data, data_memory_[enterpoint_node_], D_);
+            comparison++;
+
+            for (int lev = element_levels_[enterpoint_node_]; lev > 0; lev--)
             {
-              id_t cand = neighbors[i];
-              float d = distance(query_data, data_memory_[cand], D_);
-              if (d < cur_dist)
-              {
-                cur_dist = d;
-                cur_obj = cand;
-                changed = true;
-              }
+                bool changed = true;
+                while (changed)
+                {
+                    changed = false;
+                    const auto& neighbors = link_lists_[cur_obj][lev];
+                    size_t num_neighbors = neighbors.size();
+
+                    for (size_t i = 0; i < num_neighbors; i++)
+                    {
+                        id_t cand = neighbors[i];
+                        float d = distance(query_data, data_memory_[cand], D_);
+                        if (d < cur_dist)
+                        {
+                            cur_dist = d;
+                            cur_obj = cand;
+                            changed = true;
+                        }
+                    }
+                    comparison += num_neighbors;
+                }
             }
-            comparison += num_neighbors;
-          }
+
+            auto top_candidates = SearchBaseLayerGetData(cur_obj, query_data, 0, ef, qid, data_type);
+
+            while (top_candidates.size() > k)
+            {
+                top_candidates.pop();
+            }
+
+            comparison_.fetch_add(comparison);
+
+            return top_candidates;
         }
-
-        auto top_candidates = SearchBaseLayerGetData(cur_obj, query_data, 0, ef, qid, data_type);
-
-        while (top_candidates.size() > k)
-        {
-          top_candidates.pop();
-        }
-
-        comparison_.fetch_add(comparison);
-
-        return top_candidates;
-      }
 
         void SearchGetData(const std::vector<std::vector<data_t>> &queries, size_t k, size_t ef, std::vector<std::vector<id_t>> &vids, std::vector<std::vector<float>> &dists, int data_type)
         {
@@ -801,11 +804,6 @@ namespace anns
             std::vector<bool> mass_visited(cur_element_count_, false);
             std::priority_queue<std::pair<float, id_t>> top_candidates;
             std::priority_queue<std::pair<float, id_t>> candidate_set;
-            // if (test_inter_results[qid].ready) {
-                
-            // } else {
-
-            // }
             float dist = distance(data_point, data_memory_[ep_id], D_);
             comparison++;
             top_candidates.emplace(dist, ep_id); // max heap
@@ -976,6 +974,12 @@ namespace anns
             utils::WriteToFile<int>(utils::Flatten(train_label_valid), {train_label_valid.size(), train_label_valid[0].size()}, data_prefix + this->prefix + ".train_label.ivecs");
             utils::WriteToFile<float>(utils::Flatten(train_feats_nn_valid), {train_feats_nn_valid.size(), train_feats_nn_valid[0].size()}, data_prefix + this->prefix + ".train_feats_nn.fvecs");
             // utils::WriteToFile<float>(utils::Flatten(train_feats_lgb_valid), {train_feats_lgb_valid.size(), train_feats_lgb_valid[0].size()}, data_prefix + this->prefix + ".train_feats_lgb.fvecs");
+        }
+
+        void Reset() 
+        {
+            test_inter_results.clear();
+            test_inter_results.resize(test_label.size(), IntermediateResult(check_stamp));
         }
     };
 

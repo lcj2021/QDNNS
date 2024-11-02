@@ -192,29 +192,34 @@ int main(int argc, char** argv)
     std::vector<faiss::idx_t> knn_gpu(nq * k_gpu);
     std::vector<data_t> dist_gpu(nq * k_gpu);
 
+    std::thread gpu_thread;
     int device = 1;
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
     faiss::gpu::GpuIndexFlat gpu_index(&res, d0, metric_gpu, config);
-    gpu_index.add(nb, base_vectors.data());
+    gpu_thread = std::thread([&gpu_index, &base_vectors] {
+        gpu_index.add(nb, base_vectors.data());
+    });
 
     auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (
         base_vectors, index_path, dataset,
         k, check_stamp, metric_cpu);
     hnsw->SetNumThreads(num_thread);
+    gpu_thread.join();
 
     std::vector<std::vector<id_t>> knn_cpu, knn_all;
     std::vector<std::vector<data_t>> dist_cpu, dist_all;
     hnsw->GetComparisonAndClear();
     size_t nq_cpu, nq_gpu;
-    std::vector<int> pcts = {0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 
-                70, 72, 74, 76, 78, 
-                80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100};
+    std::vector<int> pcts = {
+        0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 
+        70, 72, 74, 76, 78, 
+        80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100
+    };
     
     // for (int pct = 0; pct <= 100; pct += 5) {
     for (auto pct : pcts) {
-        std::thread gpu_thread;
         for (int iter = 0; iter < 3; ++iter) {
 
             // Random
@@ -255,6 +260,7 @@ int main(int argc, char** argv)
                     gpu_thread.join();
                 }
                 query_timer.Stop();
+                hnsw->Reset();
                 std::cout << "[Query][HNNS] Search time: " << query_timer.GetTime() << std::endl;
             }
 

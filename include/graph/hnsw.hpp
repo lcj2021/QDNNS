@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <limits>
+#include <LightGBM/c_api.h>
 
 #ifdef _MSC_VER
 #include <immintrin.h>
@@ -29,6 +30,13 @@ namespace anns
 
   namespace graph
   {
+    template <typename data_t>
+    struct IntermediateResult
+    {
+        std::priority_queue<std::pair<float, id_t>> top_candidates, candidate_set;
+        std::vector<bool> mass_visited;
+        bool ready = false;
+    };
 
     template <typename data_t>
     class HNSW
@@ -67,6 +75,7 @@ namespace anns
       std::vector<std::vector<float>> test_feats_lgb;
       std::vector<std::vector<int>> train_label;
       std::vector<std::vector<int>> test_label;
+      std::vector<IntermediateResult<data_t>> test_inter_results;
 
       std::vector<id_t> test_gt, train_gt;
       id_t dimension_gt, num_test, num_train;
@@ -75,6 +84,8 @@ namespace anns
 
       size_t num_check = 100;     // 
       int recall_at_k = 100;
+
+      BoosterHandle handle; // LightGBM model
 
       HNSW(size_t D, size_t max_elements, size_t M, size_t ef_construction, 
       std::string dataset,
@@ -166,6 +177,21 @@ namespace anns
         test_feats_lgb.resize(num_test);
         train_label.resize(num_train);
         test_label.resize(num_test);
+        test_inter_results.resize(num_test);
+
+        std::string model_path = "/data/disk1/liuchengjun/HNNS/checkpoint/" + dataset + 
+            ".M_" + std::to_string(Mmax_) + ".efc_" + std::to_string(ef_construction_) + 
+            ".efs_" + std::to_string(ef_construction_) + 
+            ".ck_ts_" + std::to_string(check_stamp) + 
+            ".ncheck_100.recall@1000.thr_980.txt";
+        std::cout << "[LightGBM] model_path: " << model_path << std::endl;
+        int out_num_iterations, result;
+        result = LGBM_BoosterCreateFromModelfile(model_path.data(), &out_num_iterations, &handle);
+        if (result == 0) {
+            std::cout << "[LightGBM] Model loaded successfully." << std::endl;
+        } else {
+            std::cout << "[LightGBM] Failed to load model." << std::endl;
+        }
       }
 
       void Save(const std::string& filename) const noexcept
@@ -722,106 +748,121 @@ namespace anns
         return top_candidates;
       }
 
-      void SearchGetData(const std::vector<std::vector<data_t>> &queries, size_t k, size_t ef, std::vector<std::vector<id_t>> &vids, std::vector<std::vector<float>> &dists, int data_type)
-      {
-        size_t nq = queries.size();
-        vids.clear();
-        dists.clear();
-        vids.resize(nq);
-        dists.resize(nq);
-
-#pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
-        for (size_t i = 0; i < nq; i++)
+        void SearchGetData(const std::vector<std::vector<data_t>> &queries, size_t k, size_t ef, std::vector<std::vector<id_t>> &vids, std::vector<std::vector<float>> &dists, int data_type)
         {
-          const auto &query = queries[i];
-          auto &vid = vids[i];
-          auto &dist = dists[i];
-        
-          auto r = SearchGetData(query.data(), k, ef, i, data_type);
-          vid.reserve(r.size());
-          dist.reserve(r.size());
-          while (r.size())
-          {
-            const auto &te = r.top();
-            vid.emplace_back(te.second);
-            dist.emplace_back(te.first);
-            r.pop();
-          }
-          std::reverse(vid.begin(), vid.end());
-          if (rand() % 10000 < 10) {
-            std::cout << "SearchGetData: " << i << " / " << nq << std::endl;
-          }
-        }
-      }
-      
-      // 1: for query data (test set); 2: for train data (train set)
-      std::priority_queue<std::pair<float, id_t>> SearchBaseLayerGetData(id_t ep_id, const data_t *data_point, int level, size_t ef, id_t qid, int data_type)
-      {
-        size_t comparison = 0;
-        size_t num_lookback = 0;
-        size_t num_pop = 0;
-        size_t num_lb_update = 0;
-        std::vector<bool> mass_visited(cur_element_count_, false);
-        std::priority_queue<std::pair<float, id_t>> top_candidates;
-        std::priority_queue<std::pair<float, id_t>> candidate_set;
-        float dist = distance(data_point, data_memory_[ep_id], D_);
-        comparison++;
-        top_candidates.emplace(dist, ep_id); // max heap
-        candidate_set.emplace(-dist, ep_id); // min heap
-        mass_visited[ep_id] = true;
+            size_t nq = queries.size();
+            vids.clear();
+            dists.clear();
+            vids.resize(nq);
+            dists.resize(nq);
 
-        /// @brief Branch and Bound Algorithm
-        float low_bound = dist;
-        float dist_start = dist;    // For SIGMOD20 lightgbm
-
-        bool is_full_recall = false;  // label: minimum comparisons to get 100% recall
-        bool is_checked = false;
-
-        auto &vec_label = data_type == 1 ? test_label[qid] : train_label[qid];
-        auto &vec_feats_hnns = data_type == 1 ? test_feats_nn[qid] : train_feats_nn[qid];
-        auto &vec_feats_lgb = data_type == 1 ? test_feats_lgb[qid] : train_feats_lgb[qid];
-        
-        const auto &gt = data_type == 1 ? test_gt : train_gt;
-
-
-        while (candidate_set.size())
-        {
-            auto curr_el_pair = candidate_set.top();
-            if (-curr_el_pair.first > low_bound && top_candidates.size() == ef)
-                break;
-            candidate_set.pop();
-            id_t curr_node_id = curr_el_pair.second;
-            std::unique_lock<std::mutex> lock(*link_list_locks_[curr_node_id]);
-            const auto& neighbors = link_lists_[curr_node_id][level];
-
-
-            for (id_t neighbor_id: neighbors)
-            {
-                if (mass_visited[neighbor_id] == false)
+            if (data_type == 0) {
+            #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
+                for (size_t i = 0; i < nq; i++)
                 {
-                    mass_visited[neighbor_id] = true;
-
-                    float dist = distance(data_point, data_memory_[neighbor_id], D_);
-                    comparison++;
-                    if (!is_checked && dist > dist_start) {
-                        num_lookback++;
-                    }
-
-                    if (data_type && comparison == check_stamp) 
+                    const auto &query = queries[i];
+                    auto &score = dists[i];
+                    auto r = SearchGetData(query.data(), k, ef, i, 0);
+                    score.emplace_back(r.top().first);
+                }
+            } else {
+            #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
+                for (size_t i = 0; i < nq; i++)
+                {
+                    const auto &query = queries[i];
+                    auto &vid = vids[i];
+                    auto &dist = dists[i];
+                    
+                    auto r = SearchGetData(query.data(), k, ef, i, data_type);
+                    vid.reserve(r.size());
+                    dist.reserve(r.size());
+                    while (r.size())
                     {
-                        is_checked = true;
-                        auto top_candidates_backup = top_candidates;
-                        std::vector<std::pair<float, id_t>> check_candidates;
+                        const auto &te = r.top();
+                        vid.emplace_back(te.second);
+                        dist.emplace_back(te.first);
+                        r.pop();
+                    }
+                    std::reverse(vid.begin(), vid.end());
+                    if (rand() % 10000 < 10) {
+                        std::cout << "SearchGetData: " << i << " / " << nq << std::endl;
+                    }
+                }
+            }
+        }
+      
+        // 1: for query data (test set); 2: for train data (train set)
+        std::priority_queue<std::pair<float, id_t>> SearchBaseLayerGetData(id_t ep_id, const data_t *data_point, int level, size_t ef, id_t qid, int data_type)
+        {
+            size_t comparison = 0;
+            size_t num_lookback = 0;
+            size_t num_pop = 0;
+            size_t num_lb_update = 0;
+            std::vector<bool> mass_visited(cur_element_count_, false);
+            std::priority_queue<std::pair<float, id_t>> top_candidates;
+            std::priority_queue<std::pair<float, id_t>> candidate_set;
+            // if (test_inter_results[qid].ready) {
+                
+            // } else {
 
-                        while (top_candidates_backup.size()) {
-                            auto curr_el_pair = top_candidates_backup.top();
-                            top_candidates_backup.pop();
-                            check_candidates.emplace_back(curr_el_pair);
+            // }
+            float dist = distance(data_point, data_memory_[ep_id], D_);
+            comparison++;
+            top_candidates.emplace(dist, ep_id); // max heap
+            candidate_set.emplace(-dist, ep_id); // min heap
+            mass_visited[ep_id] = true;
+
+            /// @brief Branch and Bound Algorithm
+            float low_bound = dist;
+            float dist_start = dist;    // For SIGMOD20 lightgbm
+
+            bool is_checked = false;
+
+            auto &vec_label = data_type == 2 ? train_label[qid] : test_label[qid];
+            auto &vec_feats_hnns = data_type == 2 ? train_feats_nn[qid] : test_feats_nn[qid];
+            auto &vec_feats_lgb = data_type == 2 ? train_feats_lgb[qid] : test_feats_lgb[qid];
+            if (data_type == 0) vec_feats_hnns.clear();
+            
+            const auto &gt = data_type == 2 ? train_gt : test_gt;
+
+
+            while (candidate_set.size())
+            {
+                auto curr_el_pair = candidate_set.top();
+                if (-curr_el_pair.first > low_bound && top_candidates.size() == ef)
+                    break;
+                candidate_set.pop();
+                id_t curr_node_id = curr_el_pair.second;
+                std::unique_lock<std::mutex> lock(*link_list_locks_[curr_node_id]);
+                const auto& neighbors = link_lists_[curr_node_id][level];
+
+
+                for (id_t neighbor_id: neighbors)
+                {
+                    if (mass_visited[neighbor_id] == false)
+                    {
+                        mass_visited[neighbor_id] = true;
+
+                        float dist = distance(data_point, data_memory_[neighbor_id], D_);
+                        comparison++;
+                        if (!is_checked && dist > dist_start) {
+                            num_lookback++;
                         }
-                        std::reverse(check_candidates.begin(), check_candidates.end());
-                        check_candidates.resize(num_check);
 
-                        if (data_type) {
+                        if (comparison == check_stamp) 
+                        {
+                            is_checked = true;
+                            auto top_candidates_backup = top_candidates;
+                            std::vector<std::pair<float, id_t>> check_candidates;
+
+                            while (top_candidates_backup.size()) {
+                                auto curr_el_pair = top_candidates_backup.top();
+                                top_candidates_backup.pop();
+                                check_candidates.emplace_back(curr_el_pair);
+                            }
+                            std::reverse(check_candidates.begin(), check_candidates.end());
+                            check_candidates.resize(num_check);
+
                             for (int d = 0; d < D_; ++d) {
                                 vec_feats_lgb.emplace_back(data_point[d]);
                                 vec_feats_hnns.emplace_back(data_point[d]);
@@ -840,52 +881,62 @@ namespace anns
                             vec_feats_hnns.emplace_back(num_lookback);
                             vec_feats_hnns.emplace_back(num_pop);
                             vec_feats_hnns.emplace_back(num_lb_update);
+                            // type 0: for hybrid search, only features are needed
+                            if (data_type == 0) {
+                                // [LightGBM] begin inference
+                                int64_t out_len;
+                                double out_result;
+                                LGBM_BoosterPredictForMat(handle, vec_feats_hnns.data(), C_API_DTYPE_FLOAT32, 
+                                    1, vec_feats_hnns.size(), 1, C_API_PREDICT_NORMAL, 0, -1, "", &out_len, &out_result);
+                                
+                                comparison_.fetch_add(comparison);
+                                std::priority_queue<std::pair<float, id_t>> queue_for_score;
+                                queue_for_score.emplace(out_result, neighbor_id);
+                                return queue_for_score;
+                            }
                         }
-                    }
 
-                    /// @brief If neighbor is closer than farest vector in top result, and result.size still less than ef
-                    if (top_candidates.top().first > dist || top_candidates.size() < ef)
-                    {
-                        candidate_set.emplace(-dist, neighbor_id);
-                        top_candidates.emplace(dist, neighbor_id);
+                        /// @brief If neighbor is closer than farest vector in top result, and result.size still less than ef
+                        if (top_candidates.top().first > dist || top_candidates.size() < ef)
+                        {
+                            candidate_set.emplace(-dist, neighbor_id);
+                            top_candidates.emplace(dist, neighbor_id);
 
-                        // give up farest result so far
-                        if (top_candidates.size() > ef) {
-                            top_candidates.pop();
-                            num_pop++;
-                        }
-                        
+                            // give up farest result so far
+                            if (top_candidates.size() > ef) {
+                                top_candidates.pop();
+                                num_pop++;
+                            }
+                            
 
-                        if (top_candidates.size()) {
-                            low_bound = top_candidates.top().first;
-                            num_lb_update++;
+                            if (top_candidates.size()) {
+                                low_bound = top_candidates.top().first;
+                                num_lb_update++;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        auto top_candidates_backup = top_candidates;
-        std::vector<id_t> knns;
-        while (top_candidates_backup.size()) {
-            auto curr_el_pair = top_candidates_backup.top();
-            top_candidates_backup.pop();
-            knns.emplace_back(curr_el_pair.second);
-        }
-        std::reverse(knns.begin(), knns.end());
-        knns.resize(recall_at_k);
+            auto top_candidates_backup = top_candidates;
+            std::vector<id_t> knns;
+            while (top_candidates_backup.size()) {
+                auto curr_el_pair = top_candidates_backup.top();
+                top_candidates_backup.pop();
+                knns.emplace_back(curr_el_pair.second);
+            }
+            std::reverse(knns.begin(), knns.end());
+            knns.resize(recall_at_k);
 
-        auto recall_cnt = utils::GetRecallCount(recall_at_k, dimension_gt, gt, knns, qid);
-        if (data_type) {
+            auto recall_cnt = utils::GetRecallCount(recall_at_k, dimension_gt, gt, knns, qid);
             vec_label.emplace_back(recall_cnt);
             vec_label.emplace_back(comparison);
-        }
 
-        comparison_.fetch_add(comparison);
-        return top_candidates;
-      }
+            comparison_.fetch_add(comparison);
+            return top_candidates;
+        }
       
-        void SaveData(std::string data_prefix, size_t ef_search)
+        void SaveData(std::string data_prefix, size_t ef_search, size_t recall_threshold)
         {
             this->prefix = dataset + "."
                 "M_" + std::to_string(Mmax_) + "." 
@@ -895,17 +946,16 @@ namespace anns
                 "ncheck_" + std::to_string(num_check) + "."
                 "recall@" + std::to_string(recall_at_k);
 
-            size_t threshold = 999;
             size_t train_label_postive = 0, test_label_postive = 0;
             for (int i = 0; i < train_label.size(); ++i) {
                 assert(train_label[i].size() == 2);
-                if (train_label[i][0] < threshold) continue;
+                if (train_label[i][0] < recall_threshold) continue;
                 train_label_postive += 1;
             }
             std::cout << "train_label_postive: " << train_label_postive << std::endl;
             for (int i = 0; i < test_label.size(); ++i) {
                 assert(test_label[i].size() == 2);
-                if (test_label[i][0] < threshold) continue;
+                if (test_label[i][0] < recall_threshold) continue;
                 test_label_postive += 1;
             }
             std::cout << "test_label_postive: " << test_label_postive << std::endl;

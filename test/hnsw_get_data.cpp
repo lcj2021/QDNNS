@@ -132,7 +132,7 @@ int main(int argc, char** argv)
     }
     // std::cout << "[Train][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
     std::cout << "[Train][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nt << std::endl;
-    hnsw->SaveData(save_prefix, efq);
+    hnsw->SaveData(save_prefix, efq, 979);
     return 0;
 }
 

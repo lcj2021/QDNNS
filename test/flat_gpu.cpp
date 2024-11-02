@@ -154,3 +154,4 @@ int main(int argc, char** argv)
     }
     return 0;
 }
+// ./flat_gpu wikipedia 96 3000 1024 1000

@@ -10,8 +10,8 @@ import os
 dataset = 'imagenet'
 dataset = 'wikipedia'
 dataset = 'gist1m'
-dataset = 'deep100m'
 dataset = 'datacomp-image'
+dataset = 'deep100m'
 config = json.loads(open('config.json').read())
 M, efs = config[dataset]["M"], config[dataset]["efs"]
 dim = config[dataset]["dim"]
@@ -20,6 +20,7 @@ ck_ts = 2000
 k = 1000
 threshold = 980
 
+# data_prefix = '/data/disk1/liuchengjun/HNNS/sample/ratio/'
 data_prefix = '/data/disk1/liuchengjun/HNNS/sample/'
 checkpoint_prefix = '/data/disk1/liuchengjun/HNNS/checkpoint/'
 prefix = f'{dataset}.M_{M}.efc_{efc}.efs_{efs}.ck_ts_{ck_ts}.ncheck_100.recall@{k}'
@@ -60,13 +61,13 @@ df = pd.concat([df_query, df_dist, df_update], axis = 1)
 ##################################################  ##################################################
 
 params = {
-    'boosting_type': 'gbdt',    # 使用 GBDT 算法
-    'objective': 'binary',  # 二分类任务
-    'metric': 'binary_logloss',            # 使用 binary_logloss 作为评估指标
-    'learning_rate': 0.05,       # 学习率
-    'num_boost_round': 3000,     # 提升迭代的轮数
-    'verbose': 1,               # 控制处理信息的详细程度
-    'num_threads': 128           # 设置线程数
+    'boosting_type': 'gbdt',
+    'objective': 'binary',
+    'metric': 'binary_logloss',
+    'learning_rate': 0.05,
+    'num_boost_round': 3000,
+    'verbose': 1,
+    "num_threads": 96
 }
 
 ##################################################  ##################################################
@@ -79,12 +80,14 @@ else:
     print(f'[Checkpoint] {checkpoint_path} not exist!')
     print('[Checkpoint] Training!')
     gbm = lgb.train(params, lgb.Dataset(df.values, label=train_label))
-    # gbm = lgb.train(params, lgb.Dataset(train_feature, label=train_label))
     gbm.save_model(checkpoint_path)
     print('[Checkpoint] Done!')
 
 train_pred = gbm.predict(train_feature)
-pct50 = np.median(train_pred)
+sorted_train_pred = np.sort(train_pred)
+# pct50 = np.percentile(train_pred, 0.5)
+# pct50 = sorted_train_pred[int(len(sorted_train_pred) * 0.5)]
+pct50 = 0.30
 print(f'pct50 threshold: {pct50}')
 
 importance = gbm.feature_importance()
@@ -139,6 +142,7 @@ for p in range(0, 100 + step, step):
     overall_recall = (success * 1.000 + fail * 0.997) / len(test_label)
     # print(f'{p}%->bruteforce | predict recall: {recalls[p]:4f} | overall recall: {overall_recall:6f}')
 
+plt.figure(figsize=(10, 8))
 plt.plot(percentages, recalls)
 plt.xlabel("Top percentage of positive examples selected (GPU Budget)")
 plt.ylabel("Recall")

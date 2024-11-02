@@ -20,7 +20,8 @@ int main(int argc, char** argv)
     // std::string dataset = "imagenet";
     // std::string dataset = "wikipedia";
     // std::string dataset = "datacomp-image";
-    std::string dataset = "deep100m";
+    // std::string dataset = "deep100m";
+    std::string dataset = std::string(argv[1]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;

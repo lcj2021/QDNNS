@@ -33,6 +33,7 @@
 
 build/
 index/
+log/
 
 *.png
 

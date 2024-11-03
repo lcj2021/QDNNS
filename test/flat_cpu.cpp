@@ -29,6 +29,11 @@ int main(int argc, char** argv)
     std::string train_gt_path;
     if (dataset == "imagenet" || dataset == "wikipedia" 
         || dataset == "datacomp-image" || dataset == "datacomp-text") {
+        // if (dataset == "datacomp-image" ) {
+        //     base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
+        //     test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.norm.fvecs";
+        //     train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.norm.fvecs";
+        // }
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
         test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
         test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";

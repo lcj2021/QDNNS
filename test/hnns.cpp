@@ -58,6 +58,8 @@ partition_random(const std::vector<data_t>& queries_vectors, std::vector<data_t>
 
 std::vector<std::vector<id_t>> knn_all;
 std::vector<std::vector<data_t>> dist_all;
+std::vector<id_t> qids_all;
+
 std::tuple<size_t, size_t> 
 partition_hnns(const std::vector<data_t>& queries_vectors, std::vector<data_t>& part1, std::vector<data_t>& part2, 
         std::vector<id_t>& ids1, std::vector<id_t>& ids2, 
@@ -75,8 +77,8 @@ partition_hnns(const std::vector<data_t>& queries_vectors, std::vector<data_t>& 
         ids1.resize(n);
         std::iota(ids1.begin(), ids1.end(), (id_t)0);
     } else {
-        hnsw.SearchGetData(utils::Nest(std::move(queries_vectors), queries_vectors.size() / d0, d0), 
-            k, efq, knn_all, dist_all, 0);
+        hnsw.SearchHNNS(utils::Nest(std::move(queries_vectors), queries_vectors.size() / d0, d0), 
+            k, efq, knn_all, dist_all, qids_all, 0);
         hnsw.GetComparisonAndClear();
         auto scores = utils::Flatten(dist_all);
         
@@ -115,7 +117,8 @@ int main(int argc, char** argv)
     efq = std::stol(argv[3]);
     k = std::stol(argv[4]);
     size_t num_thread = std::stol(argv[5]);
-    std::string method = std::string(argv[6]);
+    size_t check_stamp = std::stol(argv[6]);
+    std::string method = std::string(argv[7]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -174,7 +177,6 @@ int main(int argc, char** argv)
     cout << "Dimension query_vector: " << d1 << endl;
     cout << "Dimension train_vector: " << dt << endl;
 
-    size_t check_stamp = 2000;
     size_t num_check = 100;
     size_t ef_construction = 1000;
     std::string index_path = 
@@ -210,6 +212,8 @@ int main(int argc, char** argv)
 
     std::vector<std::vector<id_t>> knn_cpu, knn_all;
     std::vector<std::vector<data_t>> dist_cpu, dist_all;
+    qids_all.resize(nq);
+    std::iota(qids_all.begin(), qids_all.end(), (id_t)0);
     hnsw->GetComparisonAndClear();
     size_t nq_cpu, nq_gpu;
     std::vector<int> pcts = {
@@ -254,8 +258,10 @@ int main(int argc, char** argv)
                         gpu_index.search(nq_gpu, test_vector_gpu.data(), k_gpu, dist_gpu.data(), knn_gpu.data());
                     });
                 }
-                hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / d1, d1), 
-                    k, efq, knn_cpu, dist_cpu);
+                hnsw->SearchHNNS(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / d1, d1), 
+                    k, efq, knn_cpu, dist_cpu, test_ids_cpu, 1);
+                // hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / d1, d1), 
+                //     k, efq, knn_cpu, dist_cpu);
                 if (nq_gpu > 0) {
                     gpu_thread.join();
                 }

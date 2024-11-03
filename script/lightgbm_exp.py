@@ -8,17 +8,16 @@ import json
 import os
 
 dataset = 'imagenet'
-dataset = 'wikipedia'
 dataset = 'gist1m'
 dataset = 'datacomp-image'
+dataset = 'wikipedia'
 dataset = 'deep100m'
 config = json.loads(open('config.json').read())
-M, efs = config[dataset]["M"], config[dataset]["efs"]
+M, efs, threshold = config[dataset]["M"], config[dataset]["efs"], config[dataset]["threshold"]
 dim = config[dataset]["dim"]
 efc = 1000
-ck_ts = 2000
+ck_ts = 500
 k = 1000
-threshold = 980
 
 # data_prefix = '/data/disk1/liuchengjun/HNNS/sample/ratio/'
 data_prefix = '/data/disk1/liuchengjun/HNNS/sample/'

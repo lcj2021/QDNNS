@@ -24,6 +24,7 @@ int main(int argc, char** argv)
     std::string dataset = std::string(argv[1]);
     size_t M = std::stol(argv[2]);
     size_t efq = std::stol(argv[3]);
+    size_t check_stamp = std::stol(argv[4]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -82,7 +83,6 @@ int main(int argc, char** argv)
     cout << "Dimension train_vector: " << dt << endl;
 
     size_t k = 1000;
-    size_t check_stamp = 2000;
 
     utils::Timer build_timer;
     utils::Timer query_timer;
@@ -132,11 +132,11 @@ int main(int argc, char** argv)
     }
     // std::cout << "[Train][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
     std::cout << "[Train][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nt << std::endl;
-    hnsw->SaveData(save_prefix, efq, 979);
+    hnsw->SaveData(save_prefix, efq);
     return 0;
 }
 
 // sudo ./hnsw_get_data gist1m 256 1000
 // sudo ./hnsw_get_data imagenet 128 3000
-// sudo ./hnsw_get_data wikipedia 128 1000
-// sudo ./hnsw_get_data deep100m 32 1000
+// sudo ./hnsw_get_data wikipedia 32 1000 1000
+// sudo ./hnsw_get_data deep100m 32 1000 1000

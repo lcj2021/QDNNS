@@ -6,30 +6,44 @@ from sklearn.model_selection import train_test_split
 from binary_io import *
 import json
 import os
+import argparse
+
+argparse = argparse.ArgumentParser()
+argparse.add_argument('--threshold', type=int, default=1000)
 
 dataset = 'imagenet'
 dataset = 'gist1m'
-dataset = 'datacomp-image'
 dataset = 'wikipedia'
 dataset = 'deep100m'
+dataset = 'datacomp-image'
 config = json.loads(open('config.json').read())
 M, efs, threshold = config[dataset]["M"], config[dataset]["efs"], config[dataset]["threshold"]
+
+threshold = argparse.parse_args().threshold
 dim = config[dataset]["dim"]
 efc = 1000
-ck_ts = 500
+ck_ts = 1000
 k = 1000
+query_only = True
 
 # data_prefix = '/data/disk1/liuchengjun/HNNS/sample/ratio/'
 data_prefix = '/data/disk1/liuchengjun/HNNS/sample/'
 checkpoint_prefix = '/data/disk1/liuchengjun/HNNS/checkpoint/'
 prefix = f'{dataset}.M_{M}.efc_{efc}.efs_{efs}.ck_ts_{ck_ts}.ncheck_100.recall@{k}'
-checkpoint_path = f'{checkpoint_prefix}{prefix}.thr_{threshold}.txt'
+checkpoint_path = f'{checkpoint_prefix}{prefix}.thr_{threshold}.{"qonly." if query_only else ""}txt'
 
 train_feature = fvecs_read(f'{data_prefix}{prefix}.train_feats_nn.fvecs')
+test_feature = fvecs_read(f'{data_prefix}{prefix}.test_feats_nn.fvecs')[:, :]
+if query_only:
+    train_feature = train_feature[:, :dim]
+    test_feature = test_feature[:, :dim]
+
 train_number_recall = ivecs_read(f'{data_prefix}{prefix}.train_label.ivecs')[:, 0]
 train_label = train_number_recall < threshold
+train_weight_neg = (1000 - train_number_recall + 1)
+# train_weight_neg = np.log(train_weight_neg)
+# train_weight_pos = 
 train_comps = ivecs_read(f'{data_prefix}{prefix}.train_label.ivecs')[:, 1]
-test_feature = fvecs_read(f'{data_prefix}{prefix}.test_feats_nn.fvecs')
 test_number_recall = ivecs_read(f'{data_prefix}{prefix}.test_label.ivecs')[:, 0]
 test_label = test_number_recall < threshold
 test_comps = ivecs_read(f'{data_prefix}{prefix}.test_label.ivecs')[:, 1]
@@ -38,24 +52,31 @@ test_comps = ivecs_read(f'{data_prefix}{prefix}.test_label.ivecs')[:, 1]
 print(np.sum(test_label), np.sum(train_label))
 # print(len(train_feature[0]), train_feature[0][-101:])
 
+df = pd.DataFrame()
+
 offset = 0
 feat_query = train_feature[:, offset: offset + dim]
+query_cols = [f"query_{i}" for i in range(dim)]
+df_query = pd.DataFrame(feat_query, columns=query_cols)
+df = pd.concat([df, df_query], axis = 1)
 offset += dim
-feat_dist = train_feature[:, offset: offset + 100]
-offset += 100
-feat_update = train_feature[:, offset: offset + 3]
-offset += 3
+
+if offset < len(train_feature[0]):
+    feat_dist = train_feature[:, offset: offset + 100]
+    dist_cols = [f"dist_{i}" for i in range(100)]
+    df_dist = pd.DataFrame(feat_dist, columns=dist_cols)
+    df = pd.concat([df, df_dist], axis = 1)
+    offset += 100
+if offset < len(train_feature[0]):
+    feat_update = train_feature[:, offset: offset + 3]
+    update_cols = [f"update_{i}" for i in range(3)]
+    df_update = pd.DataFrame(feat_update, columns=update_cols)
+    df = pd.concat([df, df_update], axis = 1)
+    offset += 3
+
 assert offset == len(train_feature[0])
 
-query_cols = [f"query_{i}" for i in range(dim)]
-dist_cols = [f"dist_{i}" for i in range(100)]
-update_cols = [f"update_{i}" for i in range(3)]
-
-df_query = pd.DataFrame(feat_query, columns=query_cols)
-df_dist = pd.DataFrame(feat_dist, columns=dist_cols)
-df_update = pd.DataFrame(feat_update, columns=update_cols)
-
-df = pd.concat([df_query, df_dist, df_update], axis = 1)
+# df = pd.concat([df_query, df_dist, df_update], axis = 1)
 
 ##################################################  ##################################################
 
@@ -134,18 +155,12 @@ auc = trapz(recalls, percentages)
 print(f"Area Under the Curve (AUC): {auc:.4f}")
 
 total_true_label = np.sum(test_label)
-step = 2
-for p in range(0, 100 + step, step):
-    fail = total_true_label * (1 - recalls[p])
-    success = len(test_label) - fail
-    overall_recall = (success * 1.000 + fail * 0.997) / len(test_label)
-    # print(f'{p}%->bruteforce | predict recall: {recalls[p]:4f} | overall recall: {overall_recall:6f}')
 
 plt.figure(figsize=(10, 8))
 plt.plot(percentages, recalls)
 plt.xlabel("Top percentage of positive examples selected (GPU Budget)")
 plt.ylabel("Recall")
-fig_path = f'{prefix}.thr_{threshold}'
+fig_path = f'{prefix}.thr_{threshold}.{"q_only" if query_only else ""}'
 plt.title(fig_path)
 plt.savefig(fig_path + '.png', dpi=300)
 plt.show()
@@ -199,6 +214,25 @@ print(f'roc_auc_score: {roc_auc_score:.2f}')
 
 ##################################################  ##################################################
 
+pct50 = np.percentile(label_pred, 50)
+label_pred_sorted = np.sort(label_pred)
+step = 0.2
+scores = 0.0
+for p in np.arange(0, 100 + step, step):
+    pct_thr = label_pred_sorted[min(int(len(label_pred_sorted) * p / 100), len(label_pred_sorted) - 1)]
+    cpu_idx = label_pred < pct_thr
+    gpu_idx = label_pred >= pct_thr
+    cpu_recall_cnt = test_number_recall[cpu_idx]
+    overall_recall = (np.sum(cpu_recall_cnt) + 1000 * np.sum(gpu_idx)) / len(test_label)
+    # print(f'{p}%->{pct_thr:.2f} | cpu workload: {np.sum(cpu_idx)} | \
+    #     gpu workload: {np.sum(gpu_idx)} | \
+    #     overall recall: {overall_recall:6f}')
+    scores += overall_recall
+
+scores /= (100 / step)
+print(f'avg scores: {scores:.2f}')
+    # print(f'{p}%->bruteforce | predict recall: {recalls[p]:4f} | overall recall: {overall_recall:6f}')
+
 print(f'test_comps: {np.mean(test_comps):.2f}')
 print(f'test_comps: {np.sum(test_label)} / {len(test_label)}')
 index = np.arange(len(test_label))
@@ -207,8 +241,6 @@ print("*" * 100)
 hnns_cpu_idx, hnns_gpu_idx = label_pred < pct50, label_pred >= pct50
 hnns_cpu_comps, hnns_gpu_comps = test_comps[hnns_cpu_idx], test_comps[hnns_gpu_idx]
 hnns_miss = test_label[hnns_cpu_idx]
-ivecs_write(f'{checkpoint_prefix}{prefix}.thr_{threshold}.hnns_cpu_idx.ivecs', hnns_cpu_idx.reshape(-1, 1))
-ivecs_write(f'{checkpoint_prefix}{prefix}.thr_{threshold}.hnns_gpu_idx.ivecs', hnns_gpu_idx.reshape(-1, 1))
 print(f'hnns_cpu_comps: {np.mean(hnns_cpu_comps):.2f} | count: {len(hnns_cpu_comps)}')
 print(f'hnns_gpu_comps: {np.mean(hnns_gpu_comps):.2f} | count: {len(hnns_gpu_comps)}')
 print(f'hnns_miss: {np.sum(hnns_miss)}')
@@ -217,8 +249,6 @@ print()
 random_cpu_idx, random_gpu_idx = train_test_split(index, test_size = 0.5, random_state = 42)
 random_cpu_comps, random_gpu_comps = test_comps[random_cpu_idx], test_comps[random_gpu_idx]
 random_miss = test_label[random_cpu_idx]
-ivecs_write(f'{checkpoint_prefix}{prefix}.thr_{threshold}.random_cpu_idx.ivecs', random_cpu_idx.reshape(-1, 1))
-ivecs_write(f'{checkpoint_prefix}{prefix}.thr_{threshold}.random_gpu_idx.ivecs', random_gpu_idx.reshape(-1, 1))
 print(f'random_cpu_comps: {np.mean(random_cpu_comps):.2f} | count: {len(random_cpu_comps)}')
 print(f'random_gpu_comps: {np.mean(random_gpu_comps):.2f} | count: {len(random_gpu_comps)}')
 print(f'random_miss: {np.sum(random_miss)}')

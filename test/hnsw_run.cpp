@@ -34,11 +34,19 @@ int main(int argc, char** argv)
     std::string train_gt_path;
     if (dataset == "imagenet" || dataset == "wikipedia" 
         || dataset == "datacomp-image" || dataset == "datacomp-text") {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        if (dataset == "datacomp-image" ) {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.i.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.t.norm.fvecs";
+            train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.t.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
+        } else {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
+            train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        }
         metric = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -96,26 +104,6 @@ int main(int argc, char** argv)
         "/data/disk1/liuchengjun/HNNS/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
-    std::string idx_path = idx_prefix + dataset + "."
-            "M_" + std::to_string(M) + "." 
-            "efc_" + std::to_string(ef_construction) + "."
-            "efs_" + std::to_string(efq) + "."
-            "ck_ts_" + std::to_string(check_stamp) + "."
-            "ncheck_" + std::to_string(num_check) + "."
-            "recall@" + std::to_string(k) + "."
-            "thr_" + std::to_string(threshold) + ".hnns_cpu_idx.ivecs";
-    // std::vector<id_t> cpu_idx;
-    // utils::LoadFromFile(cpu_idx, idx_path);
-    // nq = std::accumulate(cpu_idx.begin(), cpu_idx.end(), 0);
-
-    // std::vector<std::vector<data_t>> nest_test_vectors_cpu(nq);
-    // for (int i = 0, j = 0; i < nest_test_vectors.size(); ++i) {
-    //     if (cpu_idx[i] == 1) {
-    //         nest_test_vectors_cpu[j ++] = nest_test_vectors[i];
-    //     }
-    // }
-    // std::swap(nest_test_vectors, nest_test_vectors_cpu);
-
 
     std::cout << "dataset: " << dataset << std::endl;
     std::cout << "efSearch: " << efq << std::endl;
@@ -150,13 +138,6 @@ int main(int argc, char** argv)
         std::cout << "[Query][HNSW] Recall@" << ck << ": " << utils::GetRecall(ck, dbg, query_gt, knn) << std::endl;
     }
     std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nq << std::endl;
-    // size_t num_recall = 0;
-    // for (int i = 0, j = 0; i < cpu_idx.size(); ++i) {
-    //     if (cpu_idx[i] == 1) {
-    //         num_recall += utils::GetRecallCount(k, dbg, query_gt, knn[j++], i);
-    //     }
-    // }
-    // std::cout << "[Query][HNSW] avg recall: " << num_recall << ", " << num_recall / (double)nq << std::endl;
 
     query_timer.Reset();
     query_timer.Start();
@@ -174,5 +155,5 @@ int main(int argc, char** argv)
 
 // ./hnsw_run imagenet 96 3000 1000 1000
 // ./hnsw_run wikipedia 128 3000 1000 1000
-// ./hnsw_run datacomp-image 48 1000 1000 1000
+// ./hnsw_run datacomp-image 32 1000 1000 1000
 // ./hnsw_run deep100m 32 1000 1000 1000

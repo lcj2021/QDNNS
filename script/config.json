@@ -24,9 +24,9 @@
         "threshold": 979
     },
     "datacomp-image": {
-        "M": 48,
+        "M": 32,
         "efs": 1000,
         "dim": 768,
-        "threshold": 1000
+        "threshold": 700
     }
 }

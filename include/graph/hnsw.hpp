@@ -29,6 +29,7 @@
 std::map<std::string, int> dataset_threshold {
     {"deep100m", 979},
     {"wikipedia", 951},
+    {"datacomp-image", 699},
 };
 
 namespace anns
@@ -38,14 +39,17 @@ namespace anns
   {
     struct IntermediateResult
     {
-        std::vector<bool> mass_visited;
         std::priority_queue<std::pair<float, id_t>> top_candidates, candidate_set;
         bool ready = false;
         std::vector<id_t> visited;
         float low_bound;
         IntermediateResult(size_t check_stamp)
         {
+            top_candidates = std::priority_queue<std::pair<float, id_t>>();
+            candidate_set = std::priority_queue<std::pair<float, id_t>>();
+            ready = false;
             visited.reserve(check_stamp);
+            low_bound = std::numeric_limits<float>::max();
         }
     };
 
@@ -93,10 +97,11 @@ namespace anns
 
       size_t check_stamp = 1000;
 
+        BoosterHandle handle; // LightGBM model
+        bool lgb_ready = false;
       size_t num_check = 100;     // 
       int recall_at_k = 100;
 
-      BoosterHandle handle; // LightGBM model
 
       HNSW(size_t D, size_t max_elements, size_t M, size_t ef_construction, 
       std::string dataset,
@@ -119,91 +124,84 @@ namespace anns
         // std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn_gt.ivecs");
       }
 
-      HNSW(const std::vector<data_t>& base, const std::string& filename, std::string dataset,
-      int recall_at_k,
-      size_t check_stamp,
-      float (*distance)(const data_t *, const data_t *, size_t),
-      size_t random_seed = 100) noexcept: distance(distance)
-      {
-        std::ifstream in(filename, std::ios::binary);
-        in.read(reinterpret_cast<char*>(&cur_element_count_), sizeof(cur_element_count_));
-        in.read(reinterpret_cast<char*>(&D_), sizeof(D_));
-        in.read(reinterpret_cast<char*>(&Mmax_), sizeof(Mmax_));
-        in.read(reinterpret_cast<char*>(&Mmax0_), sizeof(Mmax0_));
-        in.read(reinterpret_cast<char*>(&ef_construction_), sizeof(ef_construction_));
-        in.read(reinterpret_cast<char*>(&mult_), sizeof(mult_));
-        in.read(reinterpret_cast<char*>(&rev_size_), sizeof(rev_size_));
-        in.read(reinterpret_cast<char*>(&max_level_), sizeof(max_level_));
-        in.read(reinterpret_cast<char*>(&enterpoint_node_), sizeof(enterpoint_node_));
-        in.read(reinterpret_cast<char*>(&random_seed_), sizeof(random_seed_));
-        element_levels_.resize(cur_element_count_);
-        in.read(reinterpret_cast<char*>(element_levels_.data()), cur_element_count_ * sizeof(int));
-        link_lists_.resize(cur_element_count_);
-        for (id_t id = 0; id < cur_element_count_; id++)
+        HNSW(const std::vector<data_t>& base, const std::string& filename, std::string dataset,
+        int recall_at_k,
+        size_t check_stamp,
+        float (*distance)(const data_t *, const data_t *, size_t),
+        size_t random_seed = 100) noexcept: distance(distance)
         {
-          auto& ll = link_lists_[id];
-          ll.resize(element_levels_[id] + 1);
-          for (auto& l: ll)
-          {
-            size_t n;
-            in.read(reinterpret_cast<char*>(&n), sizeof(size_t));
-            l.resize(n);
-            in.read(reinterpret_cast<char*>(l.data()), n * sizeof(id_t));
-          }
-        }
-        level_generator_.seed(random_seed_);
-        link_list_locks_.resize(cur_element_count_);
-        std::for_each(link_list_locks_.begin(), link_list_locks_.end(), [](std::unique_ptr<std::mutex>& lock) 
-          { lock = std::make_unique<std::mutex>(); });
-        data_memory_.reserve(cur_element_count_);
-        for (size_t i = 0; i < cur_element_count_; i++)
-        {
-          data_memory_.emplace_back(base.data() + i * D_);
-        }
+            std::ifstream in(filename, std::ios::binary);
+            in.read(reinterpret_cast<char*>(&cur_element_count_), sizeof(cur_element_count_));
+            in.read(reinterpret_cast<char*>(&D_), sizeof(D_));
+            in.read(reinterpret_cast<char*>(&Mmax_), sizeof(Mmax_));
+            in.read(reinterpret_cast<char*>(&Mmax0_), sizeof(Mmax0_));
+            in.read(reinterpret_cast<char*>(&ef_construction_), sizeof(ef_construction_));
+            in.read(reinterpret_cast<char*>(&mult_), sizeof(mult_));
+            in.read(reinterpret_cast<char*>(&rev_size_), sizeof(rev_size_));
+            in.read(reinterpret_cast<char*>(&max_level_), sizeof(max_level_));
+            in.read(reinterpret_cast<char*>(&enterpoint_node_), sizeof(enterpoint_node_));
+            in.read(reinterpret_cast<char*>(&random_seed_), sizeof(random_seed_));
+            element_levels_.resize(cur_element_count_);
+            in.read(reinterpret_cast<char*>(element_levels_.data()), cur_element_count_ * sizeof(int));
+            link_lists_.resize(cur_element_count_);
+            for (id_t id = 0; id < cur_element_count_; id++)
+            {
+                auto& ll = link_lists_[id];
+                ll.resize(element_levels_[id] + 1);
+                for (auto& l: ll)
+                {
+                    size_t n;
+                    in.read(reinterpret_cast<char*>(&n), sizeof(size_t));
+                    l.resize(n);
+                    in.read(reinterpret_cast<char*>(l.data()), n * sizeof(id_t));
+                }
+            }
+            level_generator_.seed(random_seed_);
+            link_list_locks_.resize(cur_element_count_);
+            std::for_each(link_list_locks_.begin(), link_list_locks_.end(), [](std::unique_ptr<std::mutex>& lock) 
+            { lock = std::make_unique<std::mutex>(); });
+            data_memory_.reserve(cur_element_count_);
+            for (size_t i = 0; i < cur_element_count_; i++)
+            {
+                data_memory_.emplace_back(base.data() + i * D_);
+            }
 
-        this->recall_at_k = recall_at_k;
-        this->check_stamp = check_stamp;
-        this->dataset = dataset;
+            this->recall_at_k = recall_at_k;
+            this->check_stamp = check_stamp;
+            this->dataset = dataset;
 
-        std::string test_gt_path, train_gt_path; 
-        if (dataset == "imagenet" || dataset == "wikipedia"
-            || dataset == "datacomp-image" || dataset == "datacomp-text") {
-            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";   
-            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
-        } else {
-            test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";   
-            train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
+            std::string test_gt_path, train_gt_path; 
+            if (dataset == "imagenet" || dataset == "wikipedia"
+                || dataset == "datacomp-image" || dataset == "datacomp-text") {
+                if (dataset == "datacomp-image") {
+                    test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
+                    train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
+                } else {
+                    test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";   
+                    train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+                }
+            } else {
+                test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";   
+                train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
+            }
+            std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
+            std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
+            dimension_gt = 1000;
+            num_test /= dimension_gt;
+            num_train /= dimension_gt;
+            std::cout << "num_test: " << num_test << std::endl;
+            std::cout << "num_train: " << num_train << std::endl;
+
+            train_feats_nn.resize(num_train);
+            test_feats_nn.resize(num_test);
+            train_feats_lgb.resize(num_train);
+            test_feats_lgb.resize(num_test);
+            train_label.resize(num_train);
+            test_label.resize(num_test);
+            test_inter_results.resize(num_test, IntermediateResult(check_stamp));
+
+            
         }
-        std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
-        std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
-        dimension_gt = 1000;
-        num_test /= dimension_gt;
-        num_train /= dimension_gt;
-        std::cout << "num_test: " << num_test << std::endl;
-        std::cout << "num_train: " << num_train << std::endl;
-
-        train_feats_nn.resize(num_train);
-        test_feats_nn.resize(num_test);
-        train_feats_lgb.resize(num_train);
-        test_feats_lgb.resize(num_test);
-        train_label.resize(num_train);
-        test_label.resize(num_test);
-        test_inter_results.resize(num_test, IntermediateResult(check_stamp));
-
-        std::string model_path = "/data/disk1/liuchengjun/HNNS/checkpoint/" + dataset + 
-            ".M_" + std::to_string(Mmax_) + ".efc_" + std::to_string(ef_construction_) + 
-            ".efs_" + std::to_string(ef_construction_) + 
-            ".ck_ts_" + std::to_string(check_stamp) + 
-            ".ncheck_100.recall@1000.thr_" + std::to_string(dataset_threshold[dataset]) + ".txt";
-        std::cout << "[LightGBM] model_path: " << model_path << std::endl;
-        int out_num_iterations, result;
-        result = LGBM_BoosterCreateFromModelfile(model_path.data(), &out_num_iterations, &handle);
-        if (result == 0) {
-            std::cout << "[LightGBM] Model loaded successfully." << std::endl;
-        } else {
-            std::cout << "[LightGBM] Failed to load model." << std::endl;
-        }
-      }
 
       void Save(const std::string& filename) const noexcept
       {
@@ -747,7 +745,6 @@ namespace anns
             }
 
             auto top_candidates = SearchBaseLayerGetData(cur_obj, query_data, 0, ef, qid, data_type);
-
             while (top_candidates.size() > k)
             {
                 top_candidates.pop();
@@ -815,8 +812,6 @@ namespace anns
             auto &vec_label = data_type == 2 ? train_label[qid] : test_label[qid];
             auto &vec_feats_hnns = data_type == 2 ? train_feats_nn[qid] : test_feats_nn[qid];
             auto &vec_feats_lgb = data_type == 2 ? train_feats_lgb[qid] : test_feats_lgb[qid];
-            if (data_type == 0) vec_feats_hnns.clear();
-            
             const auto &gt = data_type == 2 ? train_gt : test_gt;
 
 
@@ -971,7 +966,7 @@ namespace anns
 
             size_t comparison = 0;
             id_t cur_obj = enterpoint_node_;
-            if (data_type == 0) {
+            if (data_type == 0 || !test_inter_results[qid].ready) {
                 float cur_dist = distance(query_data, data_memory_[enterpoint_node_], D_);
                 comparison++;
 
@@ -1022,26 +1017,23 @@ namespace anns
             size_t num_pop = 0;
             size_t num_lb_update = 0;
             auto &vec_feats_hnns = test_feats_nn[qid];
-            const auto &gt = data_type == 2 ? train_gt : test_gt;
             if (data_type == 0) vec_feats_hnns.clear();
 
-            bool first_stage_ready = false;
+            bool first_stage_ready = test_inter_results[qid].ready;
             float low_bound;
             float dist_start;    // For SIGMOD20 lightgbm
             std::vector<bool> mass_visited(cur_element_count_, false);
             std::vector<id_t> visited;
             std::priority_queue<std::pair<float, id_t>> top_candidates;
             std::priority_queue<std::pair<float, id_t>> candidate_set;
-            if (data_type == 1 && test_inter_results[qid].ready) {
+            if (first_stage_ready) {
             // if (false) {
-                first_stage_ready = true;
                 std::swap(test_inter_results[qid].top_candidates, top_candidates);
                 std::swap(test_inter_results[qid].candidate_set, candidate_set);
                 std::swap(test_inter_results[qid].visited, visited);
                 std::swap(test_inter_results[qid].low_bound, low_bound);
                 for (auto &v: visited) 
                     mass_visited[v] = true;
-                // test_inter_results[qid].ready = false;
             } else {
                 float dist = distance(data_point, data_memory_[ep_id], D_);
                 comparison++;
@@ -1200,6 +1192,12 @@ namespace anns
         {
             test_inter_results.clear();
             test_inter_results.resize(test_label.size(), IntermediateResult(check_stamp));
+        }
+
+        void LoadLightGBM(BoosterHandle handle)
+        {
+            this->handle = handle;
+            lgb_ready = true;
         }
     };
 

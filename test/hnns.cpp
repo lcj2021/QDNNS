@@ -5,6 +5,7 @@
 #include <numeric>
 #include <thread>
 #include <vector>
+#include <LightGBM/c_api.h>
 #include "graph/hnsw.hpp"
 
 #include "../utils/binary_io.hpp"
@@ -22,12 +23,14 @@ size_t k_gpu = 1000;
 float (*metric_cpu)(const data_t *, const data_t *, size_t) = nullptr;
 
 mt19937 gen(rand());
-size_t nb, d0, k, efq; // number of vectors, dimension
+size_t nb, d0, k, efq, num_thread; // number of vectors, dimension
 
 std::tuple<size_t, size_t> 
 partition_random(const std::vector<data_t>& queries_vectors, std::vector<data_t>& part1, std::vector<data_t>& part2, 
         std::vector<id_t>& ids1, std::vector<id_t>& ids2, 
         int dim, int percentage = 50) {
+    utils::Timer partition_timer;
+    partition_timer.Start();
     assert (0 <= percentage && percentage <= 100 && queries_vectors.size() % dim == 0);
     size_t n = queries_vectors.size() / dim;
     ids1.clear();   part1.clear();
@@ -51,7 +54,8 @@ partition_random(const std::vector<data_t>& queries_vectors, std::vector<data_t>
             }
         }
     }
-    std::cout << "[Partition][Random] Finished!" << std::endl;
+    partition_timer.Stop();
+    std::cout << "[Partition][Random] Partition time: " << partition_timer.GetTime() << std::endl;
     std::cout << "[Partition][Random] Part1: " << part1.size() / dim << ", part2: " << part2.size() / dim << std::endl;
     return std::make_tuple(part1.size() / dim, part2.size() / dim);
 }
@@ -59,11 +63,14 @@ partition_random(const std::vector<data_t>& queries_vectors, std::vector<data_t>
 std::vector<std::vector<id_t>> knn_all;
 std::vector<std::vector<data_t>> dist_all;
 std::vector<id_t> qids_all;
+BoosterHandle handle; // LightGBM model
 
 std::tuple<size_t, size_t> 
 partition_hnns(const std::vector<data_t>& queries_vectors, std::vector<data_t>& part1, std::vector<data_t>& part2, 
         std::vector<id_t>& ids1, std::vector<id_t>& ids2, 
         int dim, anns::graph::HNSW<data_t>& hnsw, int percentage = 50) {
+    utils::Timer partition_timer;
+    partition_timer.Start();
     assert (0 <= percentage && percentage <= 100 && queries_vectors.size() % dim == 0);
     size_t n = queries_vectors.size() / dim;
     ids1.clear();   part1.clear();
@@ -99,8 +106,57 @@ partition_hnns(const std::vector<data_t>& queries_vectors, std::vector<data_t>& 
             }
         }
     }
-    
-    std::cout << "[Partition][HNNS] Finished!" << std::endl;
+    partition_timer.Stop();
+    std::cout << "[Partition][HNNS] Partition time: " << partition_timer.GetTime() << std::endl;
+    std::cout << "[Partition][HNNS] Part1: " << part1.size() / dim << ", part2: " << part2.size() / dim << std::endl;
+    return std::make_tuple(part1.size() / dim, part2.size() / dim);
+}
+
+std::tuple<size_t, size_t> 
+partition_hnns_qonly(const std::vector<data_t>& queries_vectors, std::vector<data_t>& part1, std::vector<data_t>& part2, 
+        std::vector<id_t>& ids1, std::vector<id_t>& ids2, 
+        int dim, anns::graph::HNSW<data_t>& hnsw, int percentage = 50) {
+    utils::Timer partition_timer;
+    partition_timer.Start();
+    assert (0 <= percentage && percentage <= 100 && queries_vectors.size() % dim == 0);
+    size_t n = queries_vectors.size() / dim;
+    ids1.clear();   part1.clear();
+    ids2.clear();   part2.clear();
+    if (percentage == 0) {
+        part2 = queries_vectors;
+        ids2.resize(n);
+        std::iota(ids2.begin(), ids2.end(), (id_t)0);
+    } else if (percentage == 100) {
+        part1 = queries_vectors;
+        ids1.resize(n);
+        std::iota(ids1.begin(), ids1.end(), (id_t)0);
+    } else {
+        int64_t out_len;
+        double out_result;
+        std::vector<double> scores(n);
+        std::string params = "num_threads=" + std::to_string(num_thread);
+        LGBM_BoosterPredictForMat(handle, queries_vectors.data(), C_API_DTYPE_FLOAT32, 
+            n, dim, 1, C_API_PREDICT_NORMAL, 0, -1, params.data(), &out_len, scores.data());
+        
+        float threshold;
+        auto scores_backup = scores;
+        size_t idx = std::min(n * percentage / 100, scores.size() - 1);
+        nth_element(scores_backup.begin(), scores_backup.begin() + idx, scores_backup.end());
+        threshold = scores_backup[idx];
+        std::cout << "[Partition][HNNS] Threshold: " << threshold << std::endl;
+
+        for (size_t i = 0; i < n; ++i) {
+            if (scores[i] < threshold) {
+                ids1.emplace_back(i);
+                part1.insert(part1.end(), queries_vectors.begin() + i * dim, queries_vectors.begin() + (i + 1) * dim);
+            } else {
+                ids2.emplace_back(i);
+                part2.insert(part2.end(), queries_vectors.begin() + i * dim, queries_vectors.begin() + (i + 1) * dim);
+            }
+        }
+    }
+    partition_timer.Stop();
+    std::cout << "[Partition][HNNS] Partition time: " << partition_timer.GetTime() << std::endl;
     std::cout << "[Partition][HNNS] Part1: " << part1.size() / dim << ", part2: " << part2.size() / dim << std::endl;
     return std::make_tuple(part1.size() / dim, part2.size() / dim);
 }
@@ -116,9 +172,11 @@ int main(int argc, char** argv)
     size_t M = std::stol(argv[2]);
     efq = std::stol(argv[3]);
     k = std::stol(argv[4]);
-    size_t num_thread = std::stol(argv[5]);
+    size_t efc = efq;
+    num_thread = std::stol(argv[5]);
     size_t check_stamp = std::stol(argv[6]);
-    std::string method = std::string(argv[7]);
+    size_t threshold = std::stol(argv[7]);
+    std::string method = std::string(argv[8]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -127,11 +185,19 @@ int main(int argc, char** argv)
     faiss::MetricType metric_gpu;
     if (dataset == "imagenet" || dataset == "wikipedia" 
         || dataset == "datacomp-image" || dataset == "datacomp-text") {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        if (dataset == "datacomp-image") {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.i.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.t.norm.fvecs";
+            train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.t.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
+        } else {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
+            train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        }
         metric_gpu = faiss::MetricType::METRIC_INNER_PRODUCT;
         metric_cpu = InnerProduct;
     } else {
@@ -184,18 +250,26 @@ int main(int argc, char** argv)
         "/data/disk1/liuchengjun/HNNS/index/" + dataset + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
+    
+    std::string model_path = "/data/disk1/liuchengjun/HNNS/checkpoint/" + dataset + 
+        ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
+        ".efs_" + std::to_string(efc) + 
+        ".ck_ts_" + std::to_string(check_stamp) + 
+        ".ncheck_100.recall@1000.thr_" + std::to_string(threshold);
+    if (method == "hnns_qonly") model_path += ".qonly";
+    model_path += ".txt";
 
     std::vector<data_t> test_vector_cpu, test_vector_gpu;
     std::vector<id_t> test_ids_cpu, test_ids_gpu;
 
-    utils::Timer query_timer, train_timer;
+    utils::Timer e2e_timer, hnsw_timer;
     std::cout << "dataset: " << dataset << std::endl;
 
     std::vector<faiss::idx_t> knn_gpu(nq * k_gpu);
     std::vector<data_t> dist_gpu(nq * k_gpu);
 
     std::thread gpu_thread;
-    int device = 1;
+    int device = 6;
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
@@ -210,6 +284,16 @@ int main(int argc, char** argv)
     hnsw->SetNumThreads(num_thread);
     gpu_thread.join();
 
+    std::cout << "[LightGBM] model_path: " << model_path << std::endl;
+    int out_num_iterations, result;
+    result = LGBM_BoosterCreateFromModelfile(model_path.data(), &out_num_iterations, &handle);
+    if (result == 0) {
+        hnsw->LoadLightGBM(handle);
+        std::cout << "[LightGBM] Model loaded successfully." << std::endl;
+    } else {
+        std::cout << "[LightGBM] Failed to load model." << std::endl;
+    }
+
     std::vector<std::vector<id_t>> knn_cpu, knn_all;
     std::vector<std::vector<data_t>> dist_cpu, dist_all;
     qids_all.resize(nq);
@@ -217,10 +301,16 @@ int main(int argc, char** argv)
     hnsw->GetComparisonAndClear();
     size_t nq_cpu, nq_gpu;
     std::vector<int> pcts = {
-        0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 
-        70, 72, 74, 76, 78, 
-        80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100
+        0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50
+        // , 55, 60, 65, 
+        // 70, 72, 74, 76, 78, 
+        // 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 
+        // 95, 96, 97, 98, 99, 100
     };
+    for (int pct = 51; pct <= 100; pct += 1) {
+        pcts.push_back(pct);
+    }
+    std::reverse(pcts.begin(), pcts.end());
     
     // for (int pct = 0; pct <= 100; pct += 5) {
     for (auto pct : pcts) {
@@ -228,7 +318,7 @@ int main(int argc, char** argv)
 
             // Random
             if (method == "random") {
-                query_timer.Reset();    query_timer.Start();
+                e2e_timer.Reset();    e2e_timer.Start();
                 std::tie(nq_cpu, nq_gpu) = partition_random(queries_vectors, test_vector_cpu, test_vector_gpu, test_ids_cpu, test_ids_gpu, d0, pct);
                 knn_gpu.resize(nq_gpu * k_gpu);
                 dist_gpu.resize(nq_gpu * k_gpu);
@@ -238,17 +328,20 @@ int main(int argc, char** argv)
                         gpu_index.search(nq_gpu, test_vector_gpu.data(), k_gpu, dist_gpu.data(), knn_gpu.data());
                     });
                 }
+                hnsw_timer.Reset();    hnsw_timer.Start();
                 hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / d1, d1), 
                     k, efq, knn_cpu, dist_cpu);
+                hnsw_timer.Stop();
                 if (nq_gpu > 0) {
                     gpu_thread.join();
                 }
-                query_timer.Stop();
-                std::cout << "[Query][Random] Search time: " << query_timer.GetTime() << std::endl;
+                e2e_timer.Stop();
+                std::cout << "[Query][Random] HNSW time: " << hnsw_timer.GetTime() << std::endl;
+                std::cout << "[Query][Random] E2E time: " << e2e_timer.GetTime() << std::endl;
             } else if (method == "hnns") {
                 // HNNS
                 knn_all.clear();         dist_all.clear();
-                query_timer.Reset();    query_timer.Start();
+                e2e_timer.Reset();    e2e_timer.Start();
                 std::tie(nq_cpu, nq_gpu) = partition_hnns(queries_vectors, test_vector_cpu, test_vector_gpu, test_ids_cpu, test_ids_gpu, d0, *hnsw, pct);
                 knn_gpu.resize(nq_gpu * k_gpu);
                 dist_gpu.resize(nq_gpu * k_gpu);
@@ -265,9 +358,31 @@ int main(int argc, char** argv)
                 if (nq_gpu > 0) {
                     gpu_thread.join();
                 }
-                query_timer.Stop();
+                e2e_timer.Stop();
                 hnsw->Reset();
-                std::cout << "[Query][HNNS] Search time: " << query_timer.GetTime() << std::endl;
+                std::cout << "[Query][HNNS] E2E time: " << e2e_timer.GetTime() << std::endl;
+            } else if (method == "hnns_qonly") {
+                knn_all.clear();         dist_all.clear();
+                e2e_timer.Reset();    e2e_timer.Start();
+                std::tie(nq_cpu, nq_gpu) = partition_hnns_qonly(queries_vectors, test_vector_cpu, test_vector_gpu, test_ids_cpu, test_ids_gpu, d0, *hnsw, pct);
+                knn_gpu.resize(nq_gpu * k_gpu);
+                dist_gpu.resize(nq_gpu * k_gpu);
+
+                if (nq_gpu > 0) {
+                    gpu_thread = std::thread([&gpu_index, &test_vector_gpu, &knn_gpu, &dist_gpu, &nq_gpu] {
+                        gpu_index.search(nq_gpu, test_vector_gpu.data(), k_gpu, dist_gpu.data(), knn_gpu.data());
+                    });
+                }
+                hnsw_timer.Reset();    hnsw_timer.Start();
+                hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / d1, d1), 
+                    k, efq, knn_cpu, dist_cpu);
+                hnsw_timer.Stop();
+                if (nq_gpu > 0) {
+                    gpu_thread.join();
+                }
+                e2e_timer.Stop();
+                std::cout << "[Query][HNNS] HNSW time: " << hnsw_timer.GetTime() << std::endl;
+                std::cout << "[Query][HNNS] E2E time: " << e2e_timer.GetTime() << std::endl;
             }
 
 
@@ -294,3 +409,4 @@ int main(int argc, char** argv)
     }
     return 0;
 }
+// nohup ./hnns datacomp-comp 32 1000 1000 48 1000 hnns > ../log/datacomp-image.M_32.efc_1000.efs_1000.ck_ts_1000.ncheck_100.recall@1000.nthread_48.hnns_optimized.log &

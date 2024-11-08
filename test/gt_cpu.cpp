@@ -29,11 +29,19 @@ int main(int argc, char** argv)
     std::string train_gt_path;
     if (dataset == "imagenet" || dataset == "wikipedia" 
         || dataset == "datacomp-image" || dataset == "datacomp-text") {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu";
+        if (dataset == "datacomp-image" ) {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.i.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.t.norm.fvecs";
+            train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.t.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.t2i.gt.ivecs.cpu.1000";
+        } else {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
+            train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        }
         metric = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -85,7 +93,6 @@ int main(int argc, char** argv)
     query_timer.Start();
     index.Search(nest_train_vectors, k, knn, dist);
     query_timer.Stop();
-    train_gt_path += ".1000";
     utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size() * k, 1}, train_gt_path);
     std::cout << "[Train][FlatCPU] Writing GT to file: " << train_gt_path << std::endl;
     std::cout << "[Train][FlatCPU] Search time: " << query_timer.GetTime() << std::endl;
@@ -94,7 +101,6 @@ int main(int argc, char** argv)
     query_timer.Start();
     index.Search(nest_test_vectors, k, knn, dist);
     query_timer.Stop();
-    test_gt_path += ".1000";
     utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size() * k, 1}, test_gt_path);
     std::cout << "[Query][FlatCPU] Writing GT to file: " << test_gt_path << std::endl;
     std::cout << "[Query][FlatCPU] Search time: " << query_timer.GetTime() << std::endl;

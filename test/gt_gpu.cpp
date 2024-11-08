@@ -37,11 +37,19 @@ int main(int argc, char** argv)
     faiss::MetricType metric;
     if (dataset == "imagenet" || dataset == "wikipedia" 
         || dataset == "datacomp-image" || dataset == "datacomp-text") {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        if (dataset == "datacomp-image" ) {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.i.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.t.norm.fvecs";
+            train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.t.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.t2i.gt.ivecs.cpu.1000";
+        } else {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
+            train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        }
         metric = faiss::MetricType::METRIC_INNER_PRODUCT;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";

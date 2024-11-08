@@ -30,12 +30,21 @@ int main(int argc, char** argv)
     std::string test_gt_path;
     std::string train_vectors_path;
     std::string train_gt_path;
-    if (dataset == "imagenet" || dataset == "wikipedia") {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+    if (dataset == "imagenet" || dataset == "wikipedia"
+        || dataset == "datacomp-image") {
+        if (dataset == "datacomp-image") {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.i.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.t.norm.fvecs";
+            train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.t.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
+        } else {
+            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
+            test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
+            test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
+            train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
+            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+        }
         metric = InnerProduct;
     } else {
         base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
@@ -139,4 +148,5 @@ int main(int argc, char** argv)
 // sudo ./hnsw_get_data gist1m 256 1000
 // sudo ./hnsw_get_data imagenet 128 3000
 // sudo ./hnsw_get_data wikipedia 32 1000 1000
+// sudo ./hnsw_get_data deep100m 32 1000 1000
 // sudo ./hnsw_get_data deep100m 32 1000 1000

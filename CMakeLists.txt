@@ -79,7 +79,6 @@ set(TEST_LIST
     ${TEST_DIR}/hnsw_build.cpp
     ${TEST_DIR}/hnsw_get_data.cpp
     ${TEST_DIR}/hnsw_run.cpp
-    ${TEST_DIR}/test_lgbm.cpp
 )
     
 foreach(test_file ${TEST_LIST})

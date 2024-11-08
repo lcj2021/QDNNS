@@ -102,14 +102,13 @@ namespace anns
       size_t num_check = 100;     // 
       int recall_at_k = 100;
 
-
       HNSW(size_t D, size_t max_elements, size_t M, size_t ef_construction, 
       std::string dataset,
       int recall_at_k,
       size_t check_stamp,
       float (*distance)(const data_t *, const data_t *, size_t),
       size_t random_seed = 100) noexcept: 
-        D_(D), Mmax_(M), Mmax0_(2 * M), ef_construction_(std::max(ef_construction, M)), random_seed_(random_seed), mult_(1 / log(1.0 * Mmax_)), rev_size_(1.0 / mult_), recall_at_k(recall_at_k), check_stamp(check_stamp)
+        D_(D), Mmax_(M), Mmax0_(2 * M), ef_construction_(std::max(ef_construction, M)), random_seed_(random_seed), mult_(1 / log(1.0 * Mmax_)), rev_size_(1.0 / mult_), recall_at_k(recall_at_k), check_stamp(check_stamp), distance(distance)
       {
         level_generator_.seed(random_seed);
 
@@ -169,7 +168,7 @@ namespace anns
             this->recall_at_k = recall_at_k;
             this->check_stamp = check_stamp;
             this->dataset = dataset;
-
+            
             std::string test_gt_path, train_gt_path; 
             if (dataset == "imagenet" || dataset == "wikipedia"
                 || dataset == "datacomp-image" || dataset == "datacomp-text") {

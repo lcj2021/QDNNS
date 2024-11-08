@@ -18,7 +18,8 @@ using id_t = uint32_t;
 using namespace std;
 
 std::string prefix = "/home/zhengweiguo/liuchengjun/";
-std::string idx_prefix = "/data/disk1/liuchengjun/HNNS/checkpoint/";
+std::string model_prefix = "/data/disk1/liuchengjun/HNNS/checkpoint/";
+std::string feat_prefix = "/data/disk1/liuchengjun/HNNS/sample/";
 size_t k_gpu = 1000;
 float (*metric_cpu)(const data_t *, const data_t *, size_t) = nullptr;
 
@@ -161,9 +162,61 @@ partition_hnns_qonly(const std::vector<data_t>& queries_vectors, std::vector<dat
     return std::make_tuple(part1.size() / dim, part2.size() / dim);
 }
 
+std::tuple<size_t, size_t> 
+partition_hnns_full_feat(const std::vector<data_t>& queries_vectors, std::vector<data_t>& part1, std::vector<data_t>& part2, 
+        std::vector<id_t>& ids1, std::vector<id_t>& ids2, 
+        int dim, const std::vector<data_t>& test_full_feat, int percentage = 50) {
+    utils::Timer partition_timer;
+    partition_timer.Start();
+    assert (0 <= percentage && percentage <= 100 && queries_vectors.size() % dim == 0);
+    size_t n = queries_vectors.size() / dim;
+    size_t dim_feat = test_full_feat.size() / n;
+    std::cout << "[Partition][HNNS] dim_feat: " << dim_feat << std::endl;
+    ids1.clear();   part1.clear();
+    ids2.clear();   part2.clear();
+    if (percentage == 0) {
+        part2 = queries_vectors;
+        ids2.resize(n);
+        std::iota(ids2.begin(), ids2.end(), (id_t)0);
+    } else if (percentage == 100) {
+        part1 = queries_vectors;
+        ids1.resize(n);
+        std::iota(ids1.begin(), ids1.end(), (id_t)0);
+    } else {
+        int64_t out_len;
+        double out_result;
+        std::vector<double> scores(n);
+        std::string params = "num_threads=" + std::to_string(num_thread);
+        LGBM_BoosterPredictForMat(handle, test_full_feat.data(), C_API_DTYPE_FLOAT32, 
+            n, dim_feat, 1, C_API_PREDICT_NORMAL, 0, -1, params.data(), &out_len, scores.data());
+        
+        float threshold;
+        auto scores_backup = scores;
+        size_t idx = std::min(n * percentage / 100, scores.size() - 1);
+        nth_element(scores_backup.begin(), scores_backup.begin() + idx, scores_backup.end());
+        threshold = scores_backup[idx];
+        std::cout << "[Partition][HNNS] Threshold: " << threshold << std::endl;
+
+        for (size_t i = 0; i < n; ++i) {
+            if (scores[i] < threshold) {
+                ids1.emplace_back(i);
+                part1.insert(part1.end(), queries_vectors.begin() + i * dim, queries_vectors.begin() + (i + 1) * dim);
+            } else {
+                ids2.emplace_back(i);
+                part2.insert(part2.end(), queries_vectors.begin() + i * dim, queries_vectors.begin() + (i + 1) * dim);
+            }
+        }
+    }
+    partition_timer.Stop();
+    std::cout << "[Partition][HNNS] Partition time: " << partition_timer.GetTime() << std::endl;
+    std::cout << "[Partition][HNNS] Part1: " << part1.size() / dim << ", part2: " << part2.size() / dim << std::endl;
+    return std::make_tuple(part1.size() / dim, part2.size() / dim);
+}
+
 int main(int argc, char** argv) 
 {
     std::vector<data_t> base_vectors, queries_vectors, train_vectors;
+    std::vector<data_t> test_full_feats;
     std::vector<id_t> query_gt, train_gt;
     // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
@@ -243,6 +296,15 @@ int main(int argc, char** argv)
     cout << "Dimension query_vector: " << d1 << endl;
     cout << "Dimension train_vector: " << dt << endl;
 
+    std::string test_full_feats_path = feat_prefix + dataset + 
+        ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
+        ".efs_" + std::to_string(efc) + 
+        ".ck_ts_" + std::to_string(check_stamp) + 
+        ".ncheck_100.recall@1000" + ".test_feats_nn.fvecs";
+
+    std::cout << "test_full_feats_path: " << test_full_feats_path << std::endl;
+    utils::LoadFromFile(test_full_feats, test_full_feats_path);
+
     size_t num_check = 100;
     size_t ef_construction = 1000;
     std::string index_path = 
@@ -269,7 +331,7 @@ int main(int argc, char** argv)
     std::vector<data_t> dist_gpu(nq * k_gpu);
 
     std::thread gpu_thread;
-    int device = 6;
+    int device = 1;
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
@@ -365,6 +427,28 @@ int main(int argc, char** argv)
                 knn_all.clear();         dist_all.clear();
                 e2e_timer.Reset();    e2e_timer.Start();
                 std::tie(nq_cpu, nq_gpu) = partition_hnns_qonly(queries_vectors, test_vector_cpu, test_vector_gpu, test_ids_cpu, test_ids_gpu, d0, *hnsw, pct);
+                knn_gpu.resize(nq_gpu * k_gpu);
+                dist_gpu.resize(nq_gpu * k_gpu);
+
+                if (nq_gpu > 0) {
+                    gpu_thread = std::thread([&gpu_index, &test_vector_gpu, &knn_gpu, &dist_gpu, &nq_gpu] {
+                        gpu_index.search(nq_gpu, test_vector_gpu.data(), k_gpu, dist_gpu.data(), knn_gpu.data());
+                    });
+                }
+                hnsw_timer.Reset();    hnsw_timer.Start();
+                hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / d1, d1), 
+                    k, efq, knn_cpu, dist_cpu);
+                hnsw_timer.Stop();
+                if (nq_gpu > 0) {
+                    gpu_thread.join();
+                }
+                e2e_timer.Stop();
+                std::cout << "[Query][HNNS] HNSW time: " << hnsw_timer.GetTime() << std::endl;
+                std::cout << "[Query][HNNS] E2E time: " << e2e_timer.GetTime() << std::endl;
+            } else if (method == "hnns_full") {
+                knn_all.clear();         dist_all.clear();
+                e2e_timer.Reset();    e2e_timer.Start();
+                std::tie(nq_cpu, nq_gpu) = partition_hnns_full_feat(queries_vectors, test_vector_cpu, test_vector_gpu, test_ids_cpu, test_ids_gpu, d0, test_full_feats, pct);
                 knn_gpu.resize(nq_gpu * k_gpu);
                 dist_gpu.resize(nq_gpu * k_gpu);
 

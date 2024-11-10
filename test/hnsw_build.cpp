@@ -4,6 +4,7 @@
 #include "utils/resize.hpp"
 #include "utils/timer.hpp"
 #include "utils/recall.hpp"
+#include "utils/dataloader.hpp"
 #include "distance.hpp"
 
 using data_t = float;
@@ -15,87 +16,45 @@ float (*metric)(const data_t *, const data_t *, size_t) = nullptr;
 
 int main(int argc, char** argv) 
 {
-    std::vector<data_t> base_vectors, queries_vectors, train_vectors;
-    std::vector<id_t> query_gt, train_gt;
-    // std::string dataset = "imagenet";
-    // std::string dataset = "gist1m";
-    // std::string dataset = "wikipedia";
-    std::string dataset = std::string(argv[1]);
-    size_t M = std::stol(argv[2]);
-    std::string base_vectors_path;
-    std::string test_vectors_path;
-    std::string test_gt_path;
-    std::string train_vectors_path;
-    std::string train_gt_path;
-    if (dataset == "imagenet" || dataset == "wikipedia" 
-        || dataset == "datacomp-image" || dataset == "datacomp-text") {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
+    std::vector<data_t> base_vectors, queries_vectors;
+    std::vector<id_t> gt_vectors;
+    std::string base_name = std::string(argv[1]);
+    std::string query_name = std::string(argv[2]);
+    size_t M = std::stol(argv[3]);
+    size_t ef_construction = std::stol(argv[4]);
+    size_t k = std::stol(argv[5]);
+    utils::DataLoader data_loader;
+    utils::BaseQueryGtConfig cfg;
+    std::tie(base_vectors, queries_vectors, gt_vectors, cfg)
+         = data_loader.load(base_name, query_name);
+    if (cfg.metric == 0) {
         metric = InnerProduct;
+        std::cout << "[Metric] InnerProduct" << std::endl;
     } else {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
         metric = L2;
+        std::cout << "[Metric] L2" << std::endl;
     }
+    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), cfg.num_query, cfg.dim_query);
 
-    auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
-    auto [nq, d1] = utils::LoadFromFile(queries_vectors, test_vectors_path);
-    auto [nbg, dbg] = utils::LoadFromFile(query_gt, test_gt_path);
-    auto [nt, dt] = utils::LoadFromFile(train_vectors, train_vectors_path);
-
-    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), nq, d1);
-    auto nest_train_vectors = utils::Nest(std::move(train_vectors), nt, dt);
-
-    base_vectors.resize(nb * d0 / 1);
-    nb = base_vectors.size() / d0;
-
-    nest_test_vectors.resize(nq);
-    nq = nest_test_vectors.size();
-
-    nest_train_vectors.resize(nt / 1);
-    nt = nest_train_vectors.size();
-
-    dbg = 1000;
-    nbg = query_gt.size() / dbg;
-
-    cout << "Load Data Done!" << endl;
-
-    cout << "Base Vectors: " << nb << endl;
-    cout << "Queries Vectors: " << nq << endl;
-    cout << "Base GT Vectors: " << nbg << endl;
-    cout << "Train Vectors: " << nt << endl;
-
-    cout << "Dimension base_vector: " << d0 << endl;
-    cout << "Dimension query_vector: " << d1 << endl;
-    cout << "Dimension query GT: " << dbg << endl;
-    cout << "Dimension train_vector: " << dt << endl;
-
-    size_t efq = 1000;
-    size_t k = 1000;
+    size_t efq = ef_construction;
     size_t check_stamp = 2000;
     std::cout << "efSearch: " << efq << std::endl;
 
     utils::Timer build_timer, query_timer;
-    size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
-        "/data/disk1/liuchengjun/HNNS/index/" + dataset + "."
+        "/data/disk1/liuchengjun/HNNS/index/" + base_name + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
-    std::cout << "dataset: " << dataset << std::endl;
+    std::cout << "base_name: " << base_name << std::endl;
     std::cout << "efSearch: " << efq << std::endl;
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
 
-    auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (d0, nb, M, ef_construction,
-        dataset, k, check_stamp, metric
+    auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (cfg.dim_base, cfg.num_base, M, ef_construction,
+        base_name, k, check_stamp, metric
     );
-    hnsw->SetNumThreads(96);
+    hnsw->SetNumThreads(12);
 
     build_timer.Start();
     hnsw->BuildIndex(base_vectors);
@@ -113,14 +72,14 @@ int main(int argc, char** argv)
     query_timer.Start();
     hnsw->Search(nest_test_vectors, k, efq, knn, dists);
     query_timer.Stop();
-    std::cout << "[Query][HNSW] Using GT from file: " << test_gt_path << std::endl;
+    std::cout << "[Query][HNSW] Using GT from file: " << cfg.gt_path << std::endl;
     std::cout << "[Query][HNSW] Search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
-    std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nq << std::endl;
+    std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, cfg.dim_gt, gt_vectors, knn) << std::endl;
+    std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)cfg.num_query << std::endl;
     return 0;
 }
 
-// sudo ./hnsw_build wikipedia 96
-// sudo ./hnsw_build wikipedia 48
-// sudo ./hnsw_build imagenet 96
-// sudo ./hnsw_build imagenet 48
+// sudo ./hnsw_build wikipedia base 96
+// sudo ./hnsw_build wikipedia base 48
+// sudo ./hnsw_build imagenet base 96
+// sudo ./hnsw_build imagenet base 48

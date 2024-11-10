@@ -15,7 +15,7 @@ dataset = 'imagenet'
 dataset = 'gist1m'
 dataset = 'wikipedia'
 dataset = 'deep100m'
-dataset = 'datacomp-image'
+dataset = 'datacomp-image.base'
 config = json.loads(open('config.json').read())
 M, efs, threshold = config[dataset]["M"], config[dataset]["efs"], config[dataset]["threshold"]
 

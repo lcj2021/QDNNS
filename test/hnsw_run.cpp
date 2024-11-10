@@ -4,6 +4,7 @@
 #include "utils/resize.hpp"
 #include "utils/timer.hpp"
 #include "utils/recall.hpp"
+#include "utils/dataloader.hpp"
 #include "distance.hpp"
 
 using data_t = float;
@@ -16,105 +17,56 @@ float (*metric)(const data_t *, const data_t *, size_t) = nullptr;
 
 int main(int argc, char** argv) 
 {
-    std::vector<data_t> base_vectors, queries_vectors, train_vectors;
-    std::vector<id_t> query_gt, train_gt;
-    // std::string dataset = "gist1m";
-    // std::string dataset = "imagenet";
-    // std::string dataset = "wikipedia";
-    std::string dataset = std::string(argv[1]);
-    size_t M = std::stol(argv[2]);
-    size_t efq = std::stol(argv[3]);
-    size_t k = std::stol(argv[4]);
-    size_t threshold = std::stol(argv[5]);
-
-    std::string base_vectors_path;
-    std::string test_vectors_path;
-    std::string test_gt_path;
-    std::string train_vectors_path;
-    std::string train_gt_path;
-    if (dataset == "imagenet" || dataset == "wikipedia" 
-        || dataset == "datacomp-image" || dataset == "datacomp-text") {
-        if (dataset == "datacomp-image" ) {
-            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.i.norm.fvecs";
-            test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.t.norm.fvecs";
-            train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.t.norm.fvecs";
-            test_gt_path = prefix + "anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
-            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
-        } else {
-            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-            test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-            test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
-            train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
-        }
+    std::vector<data_t> base_vectors, queries_vectors;
+    std::vector<id_t> gt_vectors;
+    std::string base_name = std::string(argv[1]);
+    std::string query_name = std::string(argv[2]);
+    size_t M = std::stol(argv[3]);
+    size_t efq = std::stol(argv[4]);
+    size_t k = std::stol(argv[5]);
+    utils::DataLoader data_loader;
+    utils::BaseQueryGtConfig cfg;
+    std::tie(base_vectors, queries_vectors, gt_vectors, cfg)
+         = data_loader.load(base_name, query_name);
+    if (cfg.metric == 0) {
         metric = InnerProduct;
+        std::cout << "[Metric] InnerProduct" << std::endl;
     } else {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
         metric = L2;
+        std::cout << "[Metric] L2" << std::endl;
     }
+    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), cfg.num_query, cfg.dim_query);
+    
+    base_vectors.resize(cfg.num_base * cfg.dim_base / 1);
+    cfg.num_base = base_vectors.size() / cfg.dim_base;
 
-    auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
-    auto [nq, d1] = utils::LoadFromFile(queries_vectors, test_vectors_path);
-    auto [nbg, dbg] = utils::LoadFromFile(query_gt, test_gt_path);
-    auto [nt, dt] = utils::LoadFromFile(train_vectors, train_vectors_path);
-    auto [ntg, dtg] = utils::LoadFromFile(train_gt, train_gt_path);
-
-    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), nq, d1);
-    auto nest_train_vectors = utils::Nest(std::move(train_vectors), nt, dt);
-
-    base_vectors.resize(nb * d0 / 1);
-    nb = base_vectors.size() / d0;
-
-    nest_test_vectors.resize(nq / 1);
-    nq = nest_test_vectors.size();
-
-    nest_train_vectors.resize(nt / 1);
-    nt = nest_train_vectors.size();
-
-    dbg = 1000;
-    dtg = 1000;
-    nbg = query_gt.size() / dbg;
-    ntg = train_gt.size() / dtg;
+    nest_test_vectors.resize(cfg.num_query / 1);
+    cfg.num_query = nest_test_vectors.size();
 
     cout << "Load Data Done!" << endl;
-
-    cout << "Base Vectors: " << nb << endl;
-    cout << "Queries Vectors: " << nq << endl;
-    cout << "Base GT Vectors: " << nbg << endl;
-    cout << "Train GT Vectors: " << ntg << endl;
-    cout << "Train Vectors: " << nt << endl;
-
-    cout << "Dimension base_vector: " << d0 << endl;
-    cout << "Dimension query_vector: " << d1 << endl;
-    cout << "Dimension query GT: " << dbg << endl;
-    cout << "Dimension train GT: " << dtg << endl;
-    cout << "Dimension train_vector: " << dt << endl;
 
     size_t check_stamp = 2000;
     size_t num_check = 100;
 
     utils::Timer build_timer, query_timer;
-    size_t ef_construction = 1000;
+    size_t ef_construction = efq;
+    
     std::string index_path = 
-        // "../index/" + dataset + "."
-        "/data/disk1/liuchengjun/HNNS/index/" + dataset + "."
+        // "../index/" + base_name + "."
+        "/data/disk1/liuchengjun/HNNS/index/" + base_name + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
 
-    std::cout << "dataset: " << dataset << std::endl;
+    std::cout << "base_name: " << base_name << std::endl;
     std::cout << "efSearch: " << efq << std::endl;
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
     std::cout << "index_path: " << index_path << std::endl;
 
     auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (
-        base_vectors, index_path, dataset,
+        base_vectors, index_path, base_name,
         k, check_stamp, metric);
-    hnsw->SetNumThreads(96);
+    hnsw->SetNumThreads(48);
 
     build_timer.Start();
     // hnsw->BuildIndex(base_vectors);
@@ -131,25 +83,14 @@ int main(int argc, char** argv)
     hnsw->Search(nest_test_vectors, k, efq, knn, dists);
     query_timer.Stop();
     std::cout << "[Query][HNSW] Params: " << "M: " << M << ", efSearch: " << efq << std::endl;
-    std::cout << "[Query][HNSW] Using GT from file: " << test_gt_path << std::endl;
+    std::cout << "[Query][HNSW] Using GT from file: " << cfg.gt_path << std::endl;
     std::cout << "[Query][HNSW] Search time: " << query_timer.GetTime() << std::endl;
-    // std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
+    // std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, cfg.dim_gt, gt_vectors, knn) << std::endl;
     for (int ck = 1; ck <= k; ck *= 10) {
-        std::cout << "[Query][HNSW] Recall@" << ck << ": " << utils::GetRecall(ck, dbg, query_gt, knn) << std::endl;
+        std::cout << "[Query][HNSW] Recall@" << ck << ": " << utils::GetRecall(ck, cfg.dim_gt, gt_vectors, knn) << std::endl;
     }
-    std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nq << std::endl;
+    std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)cfg.num_query << std::endl;
 
-    query_timer.Reset();
-    query_timer.Start();
-    hnsw->Search(nest_train_vectors, k, efq, knn, dists);
-    query_timer.Stop();
-    std::cout << "[Train][HNSW] Params: " << "M: " << M << ", efSearch: " << efq << std::endl;
-    std::cout << "[Train][HNSW] Using GT from file: " << train_gt_path << std::endl;
-    std::cout << "[Train][HNSW] Search time: " << query_timer.GetTime() << std::endl;
-    for (int ck = 1; ck <= k; ck *= 10) {
-        std::cout << "[Train][HNSW] Recall@" << ck << ": " << utils::GetRecall(ck, dtg, train_gt, knn) << std::endl;
-    }
-    std::cout << "[Train][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nt << std::endl;
     return 0;
 }
 

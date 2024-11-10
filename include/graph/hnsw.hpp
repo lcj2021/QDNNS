@@ -168,34 +168,35 @@ namespace anns
             this->recall_at_k = recall_at_k;
             this->check_stamp = check_stamp;
             this->dataset = dataset;
+            num_test = 10000;
             
-            std::string test_gt_path, train_gt_path; 
-            if (dataset == "imagenet" || dataset == "wikipedia"
-                || dataset == "datacomp-image" || dataset == "datacomp-text") {
-                if (dataset == "datacomp-image") {
-                    test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
-                    train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
-                } else {
-                    test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";   
-                    train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
-                }
-            } else {
-                test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";   
-                train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
-            }
-            std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
-            std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
-            dimension_gt = 1000;
-            num_test /= dimension_gt;
-            num_train /= dimension_gt;
-            std::cout << "num_test: " << num_test << std::endl;
-            std::cout << "num_train: " << num_train << std::endl;
+            // std::string test_gt_path, train_gt_path; 
+            // if (dataset == "imagenet" || dataset == "wikipedia"
+            //     || dataset == "datacomp-image" || dataset == "datacomp-text") {
+            //     if (dataset == "datacomp-image") {
+            //         test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
+            //         train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
+            //     } else {
+            //         test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";   
+            //         train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
+            //     }
+            // } else {
+            //     test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";   
+            //     train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
+            // }
+            // std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
+            // std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
+            // dimension_gt = 1000;
+            // num_test /= dimension_gt;
+            // num_train /= dimension_gt;
+            // std::cout << "num_test: " << num_test << std::endl;
+            // std::cout << "num_train: " << num_train << std::endl;
 
-            train_feats_nn.resize(num_train);
+            // train_feats_nn.resize(num_train);
+            // train_feats_lgb.resize(num_train);
+            // train_label.resize(num_train);
             test_feats_nn.resize(num_test);
-            train_feats_lgb.resize(num_train);
             test_feats_lgb.resize(num_test);
-            train_label.resize(num_train);
             test_label.resize(num_test);
             test_inter_results.resize(num_test, IntermediateResult(check_stamp));
 
@@ -444,37 +445,68 @@ namespace anns
         return top_candidates;
       }
 
-      void Search(const std::vector<std::vector<data_t>> &queries, size_t k, size_t ef, std::vector<std::vector<id_t>> &vids, std::vector<std::vector<float>> &dists)
-      {
-        size_t nq = queries.size();
-        vids.clear();
-        dists.clear();
-        vids.resize(nq);
-        dists.resize(nq);
-
-#pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
-        for (size_t i = 0; i < nq; i++)
+        void Search(const std::vector<std::vector<data_t>> &queries, size_t k, size_t ef, std::vector<std::vector<id_t>> &vids, std::vector<std::vector<float>> &dists)
         {
-          const auto &query = queries[i];
-          auto &vid = vids[i];
-          auto &dist = dists[i];
+            size_t nq = queries.size();
+            vids.clear();
+            dists.clear();
+            vids.resize(nq);
+            dists.resize(nq);
 
-          auto r = Search(query.data(), k, ef);
-          vid.reserve(r.size());
-          dist.reserve(r.size());
-          while (r.size())
-          {
-            const auto &te = r.top();
-            vid.emplace_back(te.second);
-            dist.emplace_back(te.first);
-            r.pop();
-          }
-          std::reverse(vid.begin(), vid.end());
-          if (rand() % 10000 < 1) {
-            std::cerr << "Search " << i << " / " << nq << std::endl;
-          }
+    #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
+            for (size_t i = 0; i < nq; i++)
+            {
+                const auto &query = queries[i];
+                auto &vid = vids[i];
+                auto &dist = dists[i];
+
+                auto r = Search(query.data(), k, ef);
+                vid.reserve(r.size());
+                dist.reserve(r.size());
+                while (r.size())
+                {
+                    const auto &te = r.top();
+                    vid.emplace_back(te.second);
+                    dist.emplace_back(te.first);
+                    r.pop();
+                }
+                std::reverse(vid.begin(), vid.end());
+                if (rand() % 10000 < 1) {
+                    std::cerr << "Search " << i << " / " << nq << std::endl;
+                }
+            }
         }
-      }
+
+        void Search(const std::vector<data_t> &queries, size_t k, size_t ef, std::vector<std::vector<id_t>> &vids, std::vector<std::vector<float>> &dists)
+        {
+            size_t nq = queries.size() / D_;
+            vids.clear();
+            dists.clear();
+            vids.resize(nq);
+            dists.resize(nq);
+
+    #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
+            for (size_t i = 0; i < nq; i++)
+            {
+                auto &vid = vids[i];
+                auto &dist = dists[i];
+
+                auto r = Search(queries.data() + i * D_, k, ef);
+                vid.reserve(r.size());
+                dist.reserve(r.size());
+                while (r.size())
+                {
+                    const auto &te = r.top();
+                    vid.emplace_back(te.second);
+                    dist.emplace_back(te.first);
+                    r.pop();
+                }
+                std::reverse(vid.begin(), vid.end());
+                if (rand() % 10000 < 1) {
+                    std::cerr << "Search " << i << " / " << nq << std::endl;
+                }
+            }
+        }
 
       size_t GetNumThreads() const noexcept
       {
@@ -1018,22 +1050,22 @@ namespace anns
             auto &vec_feats_hnns = test_feats_nn[qid];
             if (data_type == 0) vec_feats_hnns.clear();
 
-            bool first_stage_ready = test_inter_results[qid].ready;
+            // bool first_stage_ready = test_inter_results[qid].ready;
             float low_bound;
             float dist_start;    // For SIGMOD20 lightgbm
             std::vector<bool> mass_visited(cur_element_count_, false);
             std::vector<id_t> visited;
             std::priority_queue<std::pair<float, id_t>> top_candidates;
             std::priority_queue<std::pair<float, id_t>> candidate_set;
-            if (first_stage_ready) {
-            // if (false) {
-                std::swap(test_inter_results[qid].top_candidates, top_candidates);
-                std::swap(test_inter_results[qid].candidate_set, candidate_set);
-                std::swap(test_inter_results[qid].visited, visited);
-                std::swap(test_inter_results[qid].low_bound, low_bound);
-                for (auto &v: visited) 
-                    mass_visited[v] = true;
-            } else {
+            // if (first_stage_ready) {
+            // // if (false) {
+            //     std::swap(test_inter_results[qid].top_candidates, top_candidates);
+            //     std::swap(test_inter_results[qid].candidate_set, candidate_set);
+            //     std::swap(test_inter_results[qid].visited, visited);
+            //     std::swap(test_inter_results[qid].low_bound, low_bound);
+            //     for (auto &v: visited) 
+            //         mass_visited[v] = true;
+            // } else {
                 float dist = distance(data_point, data_memory_[ep_id], D_);
                 comparison++;
                 top_candidates.emplace(dist, ep_id); // max heap
@@ -1044,7 +1076,7 @@ namespace anns
 
                 low_bound = dist;
                 dist_start = dist;    // For SIGMOD20 lightgbm
-            }
+            // }
 
             bool is_checked = false;
 
@@ -1120,7 +1152,7 @@ namespace anns
 
                 if (is_checked && data_type == 0) {
                     int64_t out_len;
-                    double out_result;
+                    double out_result = 0.;
                     LGBM_BoosterPredictForMat(handle, vec_feats_hnns.data(), C_API_DTYPE_FLOAT32, 
                         1, vec_feats_hnns.size(), 1, C_API_PREDICT_NORMAL, 0, -1, "", &out_len, &out_result);
                     
@@ -1128,11 +1160,11 @@ namespace anns
                     std::priority_queue<std::pair<float, id_t>> queue_for_score;
                     queue_for_score.emplace(out_result, 0);
 
-                    std::swap(test_inter_results[qid].top_candidates, top_candidates);
-                    std::swap(test_inter_results[qid].candidate_set, candidate_set);
-                    std::swap(test_inter_results[qid].visited, visited);
-                    std::swap(test_inter_results[qid].low_bound, low_bound);
-                    test_inter_results[qid].ready = true;
+                    // std::swap(test_inter_results[qid].top_candidates, top_candidates);
+                    // std::swap(test_inter_results[qid].candidate_set, candidate_set);
+                    // std::swap(test_inter_results[qid].visited, visited);
+                    // std::swap(test_inter_results[qid].low_bound, low_bound);
+                    // test_inter_results[qid].ready = true;
 
                     return queue_for_score;
                 }

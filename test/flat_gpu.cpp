@@ -115,7 +115,7 @@ int main(int argc, char** argv)
     std::vector<faiss::idx_t> knn(nq * k);
     std::vector<data_t> dist(nq * k);
 
-    int device = 1;
+    int device = 4;
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;

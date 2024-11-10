@@ -23,7 +23,7 @@
         "dim": 96,
         "threshold": 979
     },
-    "datacomp-image": {
+    "datacomp-image.base": {
         "M": 32,
         "efs": 1000,
         "dim": 768,

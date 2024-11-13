@@ -1,4 +1,4 @@
-# conda activate /home/zhengweiguo/miniconda3/envs/lcj_bert
+# conda activate /home/zhengweiguo/miniconda3/envs/hnns
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -11,13 +11,14 @@ import argparse
 argparse = argparse.ArgumentParser()
 argparse.add_argument('--threshold', type=int, default=1000)
 
-dataset = 'imagenet'
 dataset = 'gist1m'
-dataset = 'wikipedia'
-dataset = 'deep100m'
+dataset = 'datacomp-text.base'
+dataset = 'imagenet.base'
+dataset = 'wikipedia.base'
 dataset = 'datacomp-image.base'
+dataset = 'deep100m.base'
 config = json.loads(open('config.json').read())
-M, efs, threshold = config[dataset]["M"], config[dataset]["efs"], config[dataset]["threshold"]
+M, efs = config[dataset]["M"], config[dataset]["efs"]
 
 threshold = argparse.parse_args().threshold
 dim = config[dataset]["dim"]
@@ -39,6 +40,7 @@ if query_only:
     train_feature = train_feature[:, :dim]
     test_feature = test_feature[:, :dim]
 
+print(f'data_path: {data_prefix}{prefix}')
 train_number_recall = ivecs_read(f'{data_prefix}{prefix}.train_label.ivecs')[:, 0]
 train_comps = ivecs_read(f'{data_prefix}{prefix}.train_label.ivecs')[:, 1]
 test_number_recall = ivecs_read(f'{data_prefix}{prefix}.test_label.ivecs')[:, 0]
@@ -87,6 +89,12 @@ if offset < len(train_feature[0]):
     df_dist = pd.DataFrame(feat_dist, columns=dist_cols)
     df = pd.concat([df, df_dist], axis = 1)
     offset += 100
+if offset < len(train_feature[0]):
+    feat_dist = train_feature[:, offset: offset + 10]
+    degree_cols = [f"degree_{i}" for i in range(10)]
+    df_degree = pd.DataFrame(feat_dist, columns=degree_cols)
+    df = pd.concat([df, df_degree], axis = 1)
+    offset += 10
 if offset < len(train_feature[0]):
     feat_update = train_feature[:, offset: offset + 3]
     update_cols = [f"update_{i}" for i in range(3)]
@@ -147,7 +155,7 @@ sorted_train_pred_classification = np.sort(train_pred_classification)
 
 importance_classification = gbm_classification.feature_importance()
 feature_names = df.columns
-query_imp, update_imp, dist_imp, cross_imp = 0, 0, 0, 0
+query_imp, update_imp, dist_imp, degree_imp, cross_imp = 0, 0, 0, 0, 0
 for f, imp in zip(feature_names, importance_classification):
     if f.startswith('query'):
         query_imp += imp
@@ -155,10 +163,14 @@ for f, imp in zip(feature_names, importance_classification):
         update_imp += imp
     elif f.startswith('dist'):
         dist_imp += imp
+    elif f.startswith('degree'):
+        degree_imp += imp
     elif f.startswith('cross'):
         cross_imp += imp
     # print(f, imp)
-print(f'importance_classification query: {query_imp / dim}, update: {update_imp / 3}, dist: {dist_imp / 100}, cross: {0 if topk==0 else cross_imp / (topk * (topk - 1) / 2)}')
+print(f'importance_classification \
+      query: {query_imp / dim}, update: {update_imp / 3}, degree: {degree_imp / 10},    \
+      dist: {dist_imp / 100}, cross: {0 if topk==0 else cross_imp / (topk * (topk - 1) / 2)}')
 
 ##################################################  ##################################################
 
@@ -179,32 +191,32 @@ label_pred_combined = label_pred_classification
 # label_pred_combined = label_pred_regression
 end = time.time()
 
-# def recall_curve(test_label_classification, label_pred_combined):
-#     n = len(label_pred_combined)
-#     recalls = []
-#     percentages = np.arange(0, 1.01, 0.01)  # 从0%到100%，步长为1%
-#     for p in percentages:
-#         threshold = np.percentile(label_pred_combined, 100 * (1 - p))
-#         if p==0: threshold += 1
-#         new_label_pred = np.where(label_pred_combined >= threshold, 1, 0)
-#         recall = recall_score(test_label_classification, new_label_pred)
-#         recalls.append(recall)
-#     return percentages, recalls
+def recall_curve(test_label_classification, label_pred_combined):
+    n = len(label_pred_combined)
+    recalls = []
+    percentages = np.arange(0, 1.01, 0.01)  # 从0%到100%，步长为1%
+    for p in percentages:
+        threshold = np.percentile(label_pred_combined, 100 * (1 - p))
+        if p==0: threshold += 1
+        new_label_pred = np.where(label_pred_combined >= threshold, 1, 0)
+        recall = recall_score(test_label_classification, new_label_pred)
+        recalls.append(recall)
+    return percentages, recalls
 
-# percentages, recalls = recall_curve(test_label_classification, label_pred_combined)
-# auc = trapz(recalls, percentages)
-# print(f"Area Under the Curve (AUC): {auc:.4f}")
+percentages, recalls = recall_curve(test_label_classification, label_pred_combined)
+auc = trapz(recalls, percentages)
+print(f"Area Under the Curve (AUC): {auc:.4f}")
 
-# total_true_label = np.sum(test_label_classification)
+total_true_label = np.sum(test_label_classification)
 
-# plt.figure(figsize=(10, 8))
-# plt.plot(percentages, recalls)
-# plt.xlabel("Top percentage of positive examples selected (GPU Budget)")
-# plt.ylabel("Recall")
-# fig_path = f'{prefix}.thr_{threshold}.{"q_only" if query_only else ""}'
-# plt.title(fig_path)
-# plt.savefig(fig_path + '.png', dpi=300)
-# plt.show()
+plt.figure(figsize=(10, 8))
+plt.plot(percentages, recalls)
+plt.xlabel("Top percentage of positive examples selected (GPU Budget)")
+plt.ylabel("Recall")
+fig_path = f'{prefix}.thr_{threshold}.{"q_only" if query_only else ""}'
+plt.title(fig_path)
+plt.savefig(fig_path + '.png', dpi=300)
+plt.show()
 
 train_number_recall_mn = np.min(train_number_recall)
 hist, bins = np.histogram(train_number_recall, bins = range(0, 1000 + 1))

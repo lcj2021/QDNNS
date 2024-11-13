@@ -25,6 +25,7 @@
 
 #include <atomic>
 #include <omp.h>
+#define MAGIC_VEC_ID std::numeric_limits<id_t>::max()
 
 std::map<std::string, int> dataset_threshold {
     {"deep100m", 979},
@@ -43,6 +44,8 @@ namespace anns
         bool ready = false;
         std::vector<id_t> visited;
         float low_bound;
+        size_t NDC = 0;
+        id_t enterpoint_node = MAGIC_VEC_ID;
         IntermediateResult(size_t check_stamp)
         {
             top_candidates = std::priority_queue<std::pair<float, id_t>>();
@@ -50,6 +53,8 @@ namespace anns
             ready = false;
             visited.reserve(check_stamp);
             low_bound = std::numeric_limits<float>::max();
+            NDC = 0;
+            enterpoint_node = MAGIC_VEC_ID;
         }
     };
 
@@ -58,7 +63,6 @@ namespace anns
     {
 
     public:
-#define MAGIC_VEC_ID std::numeric_limits<id_t>::max()
 
       size_t cur_element_count_{0};
       size_t D_{0}; // vector dimensions
@@ -82,7 +86,7 @@ namespace anns
       size_t num_threads_{1};
       std::atomic<size_t> comparison_{0};
       
-      std::string dataset, prefix;
+      std::string dataset, prefix = "/home/zhengweiguo/liuchengjun/";
 
       std::vector<std::vector<float>> train_feats_nn;
       std::vector<std::vector<float>> test_feats_nn;
@@ -129,6 +133,7 @@ namespace anns
         float (*distance)(const data_t *, const data_t *, size_t),
         size_t random_seed = 100) noexcept: distance(distance)
         {
+            std::cout << "[HNSW] Loading HNSW from file: " << filename << std::endl;
             std::ifstream in(filename, std::ios::binary);
             in.read(reinterpret_cast<char*>(&cur_element_count_), sizeof(cur_element_count_));
             in.read(reinterpret_cast<char*>(&D_), sizeof(D_));
@@ -170,37 +175,38 @@ namespace anns
             this->dataset = dataset;
             num_test = 10000;
             
-            // std::string test_gt_path, train_gt_path; 
-            // if (dataset == "imagenet" || dataset == "wikipedia"
-            //     || dataset == "datacomp-image" || dataset == "datacomp-text") {
-            //     if (dataset == "datacomp-image") {
-            //         test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
-            //         train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
-            //     } else {
-            //         test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";   
-            //         train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
-            //     }
-            // } else {
-            //     test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";   
-            //     train_gt_path = "/home/zhengweiguo/liuchengjun/anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
-            // }
-            // std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
-            // std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
-            // dimension_gt = 1000;
-            // num_test /= dimension_gt;
-            // num_train /= dimension_gt;
-            // std::cout << "num_test: " << num_test << std::endl;
-            // std::cout << "num_train: " << num_train << std::endl;
+            std::string test_gt_path, train_gt_path, dataname = dataset.substr(0, dataset.size() - 5);
+            if (dataset == "imagenet.base" || dataset == "wikipedia.base"
+                || dataset == "datacomp-image.base" || dataset == "datacomp-text.base") {
+                if (dataset == "datacomp-image.base") {
+                    test_gt_path = prefix + "anns/query/" + "datacomp-text" + "/query.t2i.base.norm.gt.ivecs.cpu.1000";
+                    train_gt_path = prefix + "anns/query/" + "datacomp-text" + "/learn.t2i.base.norm.gt.ivecs.cpu.1000";
+                } else if (dataset == "datacomp-text.base") {
+                    test_gt_path = prefix + "anns/query/" + "datacomp-image" + "/query.i2t.base.norm.gt.ivecs.cpu.1000";
+                    train_gt_path = prefix + "anns/query/" + "datacomp-image" + "/learn.i2t.base.norm.gt.ivecs.cpu.1000";
+                } else {
+                    test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataname + "/query.norm.gt.ivecs.cpu.1000";   
+                    train_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataname + "/learn.norm.gt.ivecs.cpu.1000";
+                }
+            } else {
+                test_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataname + "/query.gt.ivecs.cpu.1000";   
+                train_gt_path = "/home/zhengweiguo/liuchengjun/anns/query/" + dataname + "/learn.gt.ivecs.cpu.1000";
+            }
+            std::tie(num_test, dimension_gt) = utils::LoadFromFile(test_gt, test_gt_path);
+            std::tie(num_train, dimension_gt) = utils::LoadFromFile(train_gt, train_gt_path);
+            dimension_gt = 1000;
+            num_test /= dimension_gt;
+            num_train /= dimension_gt;
+            std::cout << "num_test: " << num_test << std::endl;
+            std::cout << "num_train: " << num_train << std::endl;
 
-            // train_feats_nn.resize(num_train);
-            // train_feats_lgb.resize(num_train);
-            // train_label.resize(num_train);
+            train_feats_nn.resize(num_train);
+            train_feats_lgb.resize(num_train);
+            train_label.resize(num_train);
             test_feats_nn.resize(num_test);
             test_feats_lgb.resize(num_test);
             test_label.resize(num_test);
             test_inter_results.resize(num_test, IntermediateResult(check_stamp));
-
-            
         }
 
       void Save(const std::string& filename) const noexcept
@@ -746,9 +752,12 @@ namespace anns
             if (cur_element_count_ == 0)
                 return std::priority_queue<std::pair<float, id_t>>();
 
+            std::vector<data_t> dists, degrees;
+            size_t num_updates = 0, num_lookback = 0;
             size_t comparison = 0;
             id_t cur_obj = enterpoint_node_;
             float cur_dist = distance(query_data, data_memory_[enterpoint_node_], D_);
+            float ori_dist = cur_dist;
             comparison++;
 
             for (int lev = element_levels_[enterpoint_node_]; lev > 0; lev--)
@@ -764,16 +773,51 @@ namespace anns
                     {
                         id_t cand = neighbors[i];
                         float d = distance(query_data, data_memory_[cand], D_);
+                        dists.emplace_back(d);
                         if (d < cur_dist)
                         {
                             cur_dist = d;
                             cur_obj = cand;
                             changed = true;
+                            num_updates++;
+                        }
+                        if (d > ori_dist)
+                        {
+                            num_lookback++;
                         }
                     }
                     comparison += num_neighbors;
+                    degrees.emplace_back(num_neighbors);
                 }
             }
+
+            while (dists.size() < num_check) {
+                dists.emplace_back(0.);
+            }
+            std::partial_sort(dists.begin(), dists.begin() + num_check, dists.end());
+            dists.resize(num_check);
+
+            while (degrees.size() < 10) {
+                degrees.emplace_back(0.);
+            }
+            std::partial_sort(degrees.begin(), degrees.begin() + 10, degrees.end(), std::greater<data_t>());
+            degrees.resize(10);
+
+            auto &vec_feats_hnns = data_type == 2 ? train_feats_nn[qid] : test_feats_nn[qid];
+
+            for (int d = 0; d < D_; ++d) {
+                vec_feats_hnns.emplace_back(query_data[d]);
+            }
+
+            for (int i = 0; i < dists.size(); ++i) {
+                vec_feats_hnns.emplace_back(dists[i]);
+            }
+            for (int i = 0; i < degrees.size(); ++i) {
+                vec_feats_hnns.emplace_back(degrees[i]);
+            }
+            vec_feats_hnns.emplace_back(num_updates);
+            vec_feats_hnns.emplace_back(num_lookback);
+            vec_feats_hnns.emplace_back(comparison);
 
             auto top_candidates = SearchBaseLayerGetData(cur_obj, query_data, 0, ef, qid, data_type);
             while (top_candidates.size() > k)
@@ -869,39 +913,39 @@ namespace anns
                             num_lookback++;
                         }
 
-                        if (comparison == check_stamp) 
-                        {
-                            is_checked = true;
-                            auto top_candidates_backup = top_candidates;
-                            std::vector<std::pair<float, id_t>> check_candidates;
+                        // if (comparison == check_stamp) 
+                        // {
+                        //     is_checked = true;
+                        //     auto top_candidates_backup = top_candidates;
+                        //     std::vector<std::pair<float, id_t>> check_candidates;
 
-                            while (top_candidates_backup.size()) {
-                                auto curr_el_pair = top_candidates_backup.top();
-                                top_candidates_backup.pop();
-                                check_candidates.emplace_back(curr_el_pair);
-                            }
-                            std::reverse(check_candidates.begin(), check_candidates.end());
-                            check_candidates.resize(num_check);
+                        //     while (top_candidates_backup.size()) {
+                        //         auto curr_el_pair = top_candidates_backup.top();
+                        //         top_candidates_backup.pop();
+                        //         check_candidates.emplace_back(curr_el_pair);
+                        //     }
+                        //     std::reverse(check_candidates.begin(), check_candidates.end());
+                        //     check_candidates.resize(num_check);
 
-                            for (int d = 0; d < D_; ++d) {
-                                vec_feats_lgb.emplace_back(data_point[d]);
-                                vec_feats_hnns.emplace_back(data_point[d]);
-                            }
+                        //     for (int d = 0; d < D_; ++d) {
+                        //         vec_feats_lgb.emplace_back(data_point[d]);
+                        //         vec_feats_hnns.emplace_back(data_point[d]);
+                        //     }
 
-                            vec_feats_lgb.emplace_back(-dist_start);
-                            vec_feats_lgb.emplace_back(-check_candidates[0].first);
-                            vec_feats_lgb.emplace_back(-check_candidates[9].first);
-                            vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
-                            vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
+                        //     vec_feats_lgb.emplace_back(-dist_start);
+                        //     vec_feats_lgb.emplace_back(-check_candidates[0].first);
+                        //     vec_feats_lgb.emplace_back(-check_candidates[9].first);
+                        //     vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
+                        //     vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
 
-                            for (int i = 0; i < check_candidates.size(); ++i) {
-                                vec_feats_hnns.emplace_back(check_candidates[i].first);
-                                // vec_feats_hnns.emplace_back(check_candidates[i].first / dist_start);
-                            }
-                            vec_feats_hnns.emplace_back(num_lookback);
-                            vec_feats_hnns.emplace_back(num_pop);
-                            vec_feats_hnns.emplace_back(num_lb_update);
-                        }
+                        //     for (int i = 0; i < check_candidates.size(); ++i) {
+                        //         vec_feats_hnns.emplace_back(check_candidates[i].first);
+                        //         // vec_feats_hnns.emplace_back(check_candidates[i].first / dist_start);
+                        //     }
+                        //     vec_feats_hnns.emplace_back(num_lookback);
+                        //     vec_feats_hnns.emplace_back(num_pop);
+                        //     vec_feats_hnns.emplace_back(num_lb_update);
+                        // }
 
                         /// @brief If neighbor is closer than farest vector in top result, and result.size still less than ef
                         if (top_candidates.top().first > dist || top_candidates.size() < ef)
@@ -995,10 +1039,45 @@ namespace anns
             if (cur_element_count_ == 0)
                 return std::priority_queue<std::pair<float, id_t>>();
 
+            std::vector<data_t> dists;
+
             size_t comparison = 0;
             id_t cur_obj = enterpoint_node_;
             if (data_type == 0 || !test_inter_results[qid].ready) {
+                // float cur_dist = distance(query_data, data_memory_[enterpoint_node_], D_);
+                // comparison++;
+
+                // for (int lev = element_levels_[enterpoint_node_]; lev > 0; lev--)
+                // {
+                //     bool changed = true;
+                //     while (changed)
+                //     {
+                //         changed = false;
+                //         const auto& neighbors = link_lists_[cur_obj][lev];
+                //         size_t num_neighbors = neighbors.size();
+
+                //         for (size_t i = 0; i < num_neighbors; i++)
+                //         {
+                //             id_t cand = neighbors[i];
+                //             float d = distance(query_data, data_memory_[cand], D_);
+                //             if (d < cur_dist)
+                //             {
+                //                 cur_dist = d;
+                //                 cur_obj = cand;
+                //                 changed = true;
+                //             }
+                //         }
+                //         comparison += num_neighbors;
+                //     }
+                // }
+                // test_inter_results[qid].NDC = comparison;
+                std::vector<data_t> dists, degrees;
+                size_t num_updates = 0, num_lookback = 0;
+
+                size_t comparison = 0;
+                id_t cur_obj = enterpoint_node_;
                 float cur_dist = distance(query_data, data_memory_[enterpoint_node_], D_);
+                float ori_dist = cur_dist;
                 comparison++;
 
                 for (int lev = element_levels_[enterpoint_node_]; lev > 0; lev--)
@@ -1014,18 +1093,66 @@ namespace anns
                         {
                             id_t cand = neighbors[i];
                             float d = distance(query_data, data_memory_[cand], D_);
+                            dists.emplace_back(d);
                             if (d < cur_dist)
                             {
                                 cur_dist = d;
                                 cur_obj = cand;
                                 changed = true;
+                                num_updates++;
+                            }
+                            if (d > ori_dist)
+                            {
+                                num_lookback++;
                             }
                         }
                         comparison += num_neighbors;
+                        degrees.emplace_back(num_neighbors);
                     }
                 }
-            } else {
 
+                while (dists.size() < num_check) {
+                    dists.emplace_back(0.);
+                }
+                std::partial_sort(dists.begin(), dists.begin() + num_check, dists.end());
+                dists.resize(num_check);
+
+                while (degrees.size() < 10) {
+                    degrees.emplace_back(0.);
+                }
+                std::partial_sort(degrees.begin(), degrees.begin() + 10, degrees.end(), std::greater<data_t>());
+                degrees.resize(10);
+
+                auto &vec_feats_hnns = data_type == 2 ? train_feats_nn[qid] : test_feats_nn[qid];
+                vec_feats_hnns.clear();
+
+                for (int d = 0; d < D_; ++d) {
+                    vec_feats_hnns.emplace_back(query_data[d]);
+                }
+
+                for (int i = 0; i < dists.size(); ++i) {
+                    vec_feats_hnns.emplace_back(dists[i]);
+                }
+                for (int i = 0; i < degrees.size(); ++i) {
+                    vec_feats_hnns.emplace_back(degrees[i]);
+                }
+                vec_feats_hnns.emplace_back(num_updates);
+                vec_feats_hnns.emplace_back(num_lookback);
+                vec_feats_hnns.emplace_back(comparison);
+                // assert (vec_feats_hnns.size() == num_check + D_ + 10 + 3);
+
+                int64_t out_len;
+                double out_result = 0.;
+                LGBM_BoosterPredictForMat(handle, vec_feats_hnns.data(), C_API_DTYPE_FLOAT32, 
+                    1, vec_feats_hnns.size(), 1, C_API_PREDICT_NORMAL, 0, -1, "", &out_len, &out_result);
+                std::priority_queue<std::pair<float, id_t>> queue_for_score;
+                queue_for_score.emplace(out_result, 0);
+                test_inter_results[qid].ready = true;
+                test_inter_results[qid].enterpoint_node = cur_obj;
+                return queue_for_score;
+            } else {
+                cur_obj = test_inter_results[qid].enterpoint_node;
+                test_inter_results[qid].ready = false;
             }
 
             auto top_candidates = SearchBaseLayerHNNS(cur_obj, query_data, 0, ef, qid, data_type);
@@ -1180,7 +1307,7 @@ namespace anns
             std::cout << "[HNSW] recall_threshold: " << recall_threshold << std::endl;
             std::cout << "[HNSW] check_stamp: " << check_stamp << std::endl;
             this->prefix = dataset + "."
-                "M_" + std::to_string(Mmax_) + "." 
+                "M_" + std::to_string(Mmax_) + "."
                 "efc_" + std::to_string(ef_construction_) + "."
                 "efs_" + std::to_string(ef_search) + "."
                 "ck_ts_" + std::to_string(check_stamp) + "."

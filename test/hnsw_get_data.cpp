@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 #include "graph/hnsw.hpp"
+#include "utils/dataloader.hpp"
 #include "utils/resize.hpp"
 #include "utils/timer.hpp"
 #include "utils/recall.hpp"
@@ -16,80 +17,39 @@ float (*metric)(const data_t *, const data_t *, size_t) = nullptr;
 
 int main(int argc, char** argv) 
 {
-    std::vector<data_t> base_vectors, queries_vectors, train_vectors;
-    std::vector<id_t> query_gt, train_gt;
+    std::vector<data_t> base_vectors, query_vectors, learn_vectors;
+    std::vector<id_t> query_gt_vectors, learn_gt_vectors;
     // std::string dataset = "gist1m";
     // std::string dataset = "imagenet";
     // std::string dataset = "wikipedia";
-    std::string dataset = std::string(argv[1]);
-    size_t M = std::stol(argv[2]);
-    size_t efq = std::stol(argv[3]);
-    size_t check_stamp = std::stol(argv[4]);
+    std::string base_name = std::string(argv[1]);
+    std::string query_name = std::string(argv[2]);
+    size_t M = std::stol(argv[3]);
+    size_t efq = std::stol(argv[4]);
+    size_t check_stamp = std::stol(argv[5]);
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
-    std::string train_vectors_path;
-    std::string train_gt_path;
-    if (dataset == "imagenet" || dataset == "wikipedia"
-        || dataset == "datacomp-image") {
-        if (dataset == "datacomp-image") {
-            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.i.norm.fvecs";
-            test_vectors_path = prefix + "anns/query/" + "datacomp-text" + "/query.t.norm.fvecs";
-            train_vectors_path = prefix + "anns/dataset/" + "datacomp-text" + "/learn.t.norm.fvecs";
-            test_gt_path = prefix + "anns/query/" + dataset + "/query.t2i.norm.gt.ivecs.cpu.1000";
-            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.t2i.norm.gt.ivecs.cpu.1000";
-        } else {
-            base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.norm.fvecs";
-            test_vectors_path = prefix + "anns/query/" + dataset + "/query.norm.fvecs";
-            test_gt_path = prefix + "anns/query/" + dataset + "/query.norm.gt.ivecs.cpu.1000";
-            train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.norm.fvecs";
-            train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.norm.gt.ivecs.cpu.1000";
-        }
+    std::string learn_vectors_path;
+    std::string learn_gt_path;
+    utils::DataLoader data_loader(base_name, query_name);
+    utils::BaseQueryLearnGtConfig cfg;
+    std::tie(base_vectors, 
+        query_vectors, query_gt_vectors, 
+        learn_vectors, learn_gt_vectors,  cfg)
+         = data_loader.load_with_learn();
+    if (cfg.metric == 0) {
         metric = InnerProduct;
+        std::cout << "[Metric] InnerProduct" << std::endl;
     } else {
-        base_vectors_path = prefix + "anns/dataset/" + dataset + "/base.fvecs";
-        test_vectors_path = prefix + "anns/query/" + dataset + "/query.fvecs";
-        test_gt_path = prefix + "anns/query/" + dataset + "/query.gt.ivecs.cpu.1000";
-        train_vectors_path = prefix + "anns/dataset/" + dataset + "/learn.fvecs";
-        train_gt_path = prefix + "anns/dataset/" + dataset + "/learn.gt.ivecs.cpu.1000";
         metric = L2;
+        std::cout << "[Metric] L2" << std::endl;
     }
-
-    auto [nb, d0] = utils::LoadFromFile(base_vectors, base_vectors_path);
-    auto [nq, d1] = utils::LoadFromFile(queries_vectors, test_vectors_path);
-    auto [nbg, dbg] = utils::LoadFromFile(query_gt, test_gt_path);
-    auto [nt, dt] = utils::LoadFromFile(train_vectors, train_vectors_path);
-    auto [ntg, dtg] = utils::LoadFromFile(train_gt, train_gt_path);
-
-    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), nq, d1);
-    auto nest_train_vectors = utils::Nest(std::move(train_vectors), nt, dt);
-
-    base_vectors.resize(nb * d0 / 1);
-    nb = base_vectors.size() / d0;
-
-    nest_test_vectors.resize(nq / 1);
-    nq = nest_test_vectors.size();
-
-    nest_train_vectors.resize(nt / 1);
-    nt = nest_train_vectors.size();
-
-    dbg = dtg = 1000;
-    nbg = query_gt.size() / dbg;
-    ntg = train_gt.size() / dtg;
+    
+    auto nest_query_vectors = utils::Nest(std::move(query_vectors), cfg.num_query, cfg.dim_query);
+    auto nest_learn_vectors = utils::Nest(std::move(learn_vectors), cfg.num_learn, cfg.dim_learn);
 
     cout << "Load Data Done!" << endl;
-
-    cout << "Base Vectors: " << nb << endl;
-    cout << "Queries Vectors: " << nq << endl;
-    cout << "Base GT Vectors: " << nbg << endl;
-    cout << "Train GT Vectors: " << ntg << endl;
-    cout << "Train Vectors: " << nt << endl;
-
-    cout << "Dimension base_vector: " << d0 << endl;
-    cout << "Dimension query_vector: " << d1 << endl;
-    cout << "Dimension query GT: " << dbg << endl;
-    cout << "Dimension train GT: " << dtg << endl;
-    cout << "Dimension train_vector: " << dt << endl;
 
     size_t k = 1000;
 
@@ -98,16 +58,16 @@ int main(int argc, char** argv)
     size_t ef_construction = 1000;
     std::string index_path = 
         // "../index/" + dataset + "."
-        "/data/disk1/liuchengjun/HNNS/index/" + dataset + "."
+        "/data/disk1/liuchengjun/HNNS/index/" + base_name + "."
         "M_" + to_string(M) + "." 
         "efc_" + to_string(ef_construction) + ".hnsw";
-    std::cout << "dataset: " << dataset << std::endl;
+    std::cout << "dataset: " << base_name << std::endl;
     std::cout << "efSearch: " << efq << std::endl;
     std::cout << "efConstruct: " << ef_construction << std::endl;
     std::cout << "M: " << M << std::endl;
 
     auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (
-        base_vectors, index_path, dataset,
+        base_vectors, index_path, base_name,
         k, check_stamp, metric);
     hnsw->SetNumThreads(96);
 
@@ -120,33 +80,32 @@ int main(int argc, char** argv)
     std::vector<std::vector<data_t>> dists;
     hnsw->GetComparisonAndClear();
     std::cout << "Build Time: " << build_timer.GetTime() << std::endl;
-    
-    query_timer.Reset();
-    query_timer.Start();
-    hnsw->SearchGetData(nest_test_vectors, k, efq, knn, dists, 1);
-    query_timer.Stop();
-    std::cout << "[Query][HNSW] Using GT from file: " << test_gt_path << std::endl;
-    std::cout << "[Query][HNSW] Search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dbg, query_gt, knn) << std::endl;
-    std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nq << std::endl;
 
     query_timer.Reset();
     query_timer.Start();
-    hnsw->SearchGetData(nest_train_vectors, k, efq, knn, dists, 2);
+    hnsw->SearchGetData(nest_query_vectors, k, efq, knn, dists, 1);
     query_timer.Stop();
-    std::cout << "[Train][HNSW] Using GT from file: " << train_gt_path << std::endl;
-    std::cout << "[Train][HNSW] Search time: " << query_timer.GetTime() << std::endl;
+    std::cout << "[Query][HNSW] Using GT from file: " << test_gt_path << std::endl;
+    std::cout << "[Query][HNSW] Search time: " << query_timer.GetTime() << std::endl;
+    std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, cfg.dim_query_gt, query_gt_vectors, knn) << std::endl;
+    std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)cfg.num_query << std::endl;
+
+    query_timer.Reset();
+    query_timer.Start();
+    hnsw->SearchGetData(nest_learn_vectors, k, efq, knn, dists, 2);
+    query_timer.Stop();
+    std::cout << "[learn][HNSW] Using GT from file: " << learn_gt_path << std::endl;
+    std::cout << "[learn][HNSW] Search time: " << query_timer.GetTime() << std::endl;
     for (int ck = 1; ck <= k; ck *= 10) {
-        std::cout << "[Train][HNSW] Recall@" << ck << ": " << utils::GetRecall(ck, dtg, train_gt, knn) << std::endl;
+        std::cout << "[learn][HNSW] Recall@" << ck << ": " << utils::GetRecall(ck, cfg.dim_learn_gt, learn_gt_vectors, knn) << std::endl;
     }
-    // std::cout << "[Train][HNSW] Recall@" << k << ": " << utils::GetRecall(k, dtg, train_gt, knn) << std::endl;
-    std::cout << "[Train][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)nt << std::endl;
+    // std::cout << "[learn][HNSW] Recall@" << k << ": " << utils::GetRecall(k, cfg.dim_learn_gt, learn_gt_vectors, knn) << std::endl;
+    std::cout << "[learn][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)cfg.num_learn << std::endl;
     hnsw->SaveData(save_prefix, efq);
     return 0;
 }
 
-// sudo ./hnsw_get_data gist1m 256 1000
-// sudo ./hnsw_get_data imagenet 128 3000
-// sudo ./hnsw_get_data wikipedia 32 1000 1000
+// sudo ./hnsw_get_data imagenet.base imagenet.query 32 1000 1000
+// sudo ./hnsw_get_data wikipedia.base wikipedia.query 32 1000 1000
 // sudo ./hnsw_get_data deep100m 32 1000 1000
 // sudo ./hnsw_get_data deep100m 32 1000 1000

@@ -23,10 +23,10 @@ int main(int argc, char** argv)
     size_t M = std::stol(argv[3]);
     size_t ef_construction = std::stol(argv[4]);
     size_t k = std::stol(argv[5]);
-    utils::DataLoader data_loader;
+    utils::DataLoader data_loader(base_name, query_name);
     utils::BaseQueryGtConfig cfg;
     std::tie(base_vectors, queries_vectors, gt_vectors, cfg)
-         = data_loader.load(base_name, query_name);
+         = data_loader.load();
     if (cfg.metric == 0) {
         metric = InnerProduct;
         std::cout << "[Metric] InnerProduct" << std::endl;
@@ -54,7 +54,7 @@ int main(int argc, char** argv)
     auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (cfg.dim_base, cfg.num_base, M, ef_construction,
         base_name, k, check_stamp, metric
     );
-    hnsw->SetNumThreads(12);
+    hnsw->SetNumThreads(96);
 
     build_timer.Start();
     hnsw->BuildIndex(base_vectors);
@@ -72,9 +72,9 @@ int main(int argc, char** argv)
     query_timer.Start();
     hnsw->Search(nest_test_vectors, k, efq, knn, dists);
     query_timer.Stop();
-    std::cout << "[Query][HNSW] Using GT from file: " << cfg.gt_path << std::endl;
+    std::cout << "[Query][HNSW] Using GT from file: " << cfg.query_gt_path << std::endl;
     std::cout << "[Query][HNSW] Search time: " << query_timer.GetTime() << std::endl;
-    std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, cfg.dim_gt, gt_vectors, knn) << std::endl;
+    std::cout << "[Query][HNSW] Recall@" << k << ": " << utils::GetRecall(k, cfg.dim_query_gt, gt_vectors, knn) << std::endl;
     std::cout << "[Query][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)cfg.num_query << std::endl;
     return 0;
 }

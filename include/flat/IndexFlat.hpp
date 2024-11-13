@@ -67,7 +67,7 @@ namespace flat
                     dists[qid][i] = dists_candidates[i].first;
                 }
 
-                if (rand() % 100 < 1) {
+                if (qid % 100 < 1) {
                     std::cerr << "Search " << qid << " / " << nq << std::endl;
                 }
             }

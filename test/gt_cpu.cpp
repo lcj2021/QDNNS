@@ -25,33 +25,31 @@ int main(int argc, char** argv)
     // std::string dataset = "deep100m";
     std::string base_name = std::string(argv[1]);
     std::string query_name = std::string(argv[2]);
-    utils::DataLoader data_loader;
-    std::string gt_path;
-    size_t num_base, dim_base, num_query, dim_query, num_gt, dim_gt;
-    int metric_type = 0;
+    utils::DataLoader data_loader(base_name, query_name);
     utils::BaseQueryGtConfig cfg;
     std::tie(base_vectors, queries_vectors, gt_vectors, cfg) 
-        = data_loader.load(base_name, query_name);
-    if (metric_type == 0) {
+        = data_loader.load();
+    if (cfg.metric == 0) {
         metric = InnerProduct;
     } else {
         metric = L2;
     }
-    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), num_query, dim_query);
+    auto nest_test_vectors = utils::Nest(std::move(queries_vectors), cfg.num_query, cfg.dim_query);
 
-    base_vectors.resize(num_base * dim_base);
-    num_base = base_vectors.size() / dim_base;
+    base_vectors.resize(cfg.num_base * cfg.dim_base);
+    cfg.num_base = base_vectors.size() / cfg.dim_base;
 
-    nest_test_vectors.resize(num_query / 1);
-    num_query = nest_test_vectors.size();
+    nest_test_vectors.resize(cfg.num_query / 1);
+    cfg.num_query = nest_test_vectors.size();
 
     cout << "Load Data Done!" << endl;
 
-    cout << "Base Vectors: " << num_base << endl;
-    cout << "Queries Vectors: " << num_query << endl;
+    cout << "Base Vectors: " << cfg.num_base << endl;
+    cout << "Queries Vectors: " << cfg.num_query << endl;
 
-    cout << "Dimension base_vector: " << dim_base << endl;
-    cout << "Dimension query_vector: " << dim_query << endl;
+    cout << "Dimension base_vector: " << cfg.dim_base << endl;
+    cout << "Dimension query_vector: " << cfg.dim_query << endl;
+    std::cout << "Will write to gt file: " << cfg.query_gt_path << std::endl;
 
 
     size_t k = 1'000;
@@ -59,9 +57,9 @@ int main(int argc, char** argv)
 
     utils::Timer query_timer;
 
-    std::vector<std::vector<id_t>> knn(num_query, std::vector<id_t>(k));
-    std::vector<std::vector<data_t>> dist(num_query, std::vector<data_t>(k));
-    anns::flat::IndexFlat<data_t> index(base_vectors, dim_base, metric);
+    std::vector<std::vector<id_t>> knn(cfg.num_query, std::vector<id_t>(k));
+    std::vector<std::vector<data_t>> dist(cfg.num_query, std::vector<data_t>(k));
+    anns::flat::IndexFlat<data_t> index(base_vectors, cfg.dim_base, metric);
     index.SetNumThreads(num_threads_);
 
     // query_timer.Reset();
@@ -76,8 +74,8 @@ int main(int argc, char** argv)
     query_timer.Start();
     index.Search(nest_test_vectors, k, knn, dist);
     query_timer.Stop();
-    utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size() * k, 1}, gt_path);
-    std::cout << "[Query][FlatCPU] Writing GT to file: " << gt_path << std::endl;
+    utils::WriteToFile<id_t>(utils::Flatten(knn), {knn.size() * k, 1}, cfg.query_gt_path);
+    std::cout << "[Query][FlatCPU] Writing GT to file: " << cfg.query_gt_path << std::endl;
     std::cout << "[Query][FlatCPU] Search time: " << query_timer.GetTime() << std::endl;
 
     return 0;

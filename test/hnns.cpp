@@ -16,7 +16,6 @@
 
 using data_t = float;
 using id_t = uint32_t;
-using namespace std;
 
 std::string data_prefix = "/home/zhengweiguo/liuchengjun/anns/";
 std::string model_prefix = "/data/disk1/liuchengjun/HNNS/checkpoint/";
@@ -26,7 +25,7 @@ float (*metric_cpu)(const data_t *, const data_t *, size_t) = nullptr;
 utils::BaseQueryGtConfig cfg;
 faiss::MetricType metric_gpu;
 
-mt19937 gen(rand());
+std::mt19937 gen(rand());
 size_t num_full_feat, dim_full_feat;
 size_t k, efq, num_thread; // number of vectors, dimension
 std::vector<data_t> test_full_feats, train_full_feats;
@@ -81,18 +80,26 @@ partition_hnns(const std::vector<data_t>& queries_vectors, std::vector<data_t>& 
     size_t n = queries_vectors.size() / dim;
     ids1.clear();   part1.clear();
     ids2.clear();   part2.clear();
-    if (percentage == 0) {
-        part2 = queries_vectors;
-        ids2.resize(n);
-        std::iota(ids2.begin(), ids2.end(), (id_t)0);
-    } else if (percentage == 100) {
-        part1 = queries_vectors;
-        ids1.resize(n);
-        std::iota(ids1.begin(), ids1.end(), (id_t)0);
-    } else {
+    // if (percentage == 0) {
+    //     part2 = queries_vectors;
+    //     ids2.resize(n);
+    //     std::iota(ids2.begin(), ids2.end(), (id_t)0);
+    // } else if (percentage == 100) {
+    //     part1 = queries_vectors;
+    //     ids1.resize(n);
+    //     std::iota(ids1.begin(), ids1.end(), (id_t)0);
+    // } else {
         hnsw.SearchHNNS(utils::Nest(std::move(queries_vectors), queries_vectors.size() / cfg.dim_base, cfg.dim_base), 
             k, efq, knn_all, dist_all, qids_all, 0);
-        hnsw.GetComparisonAndClear();
+        // size_t NDC_avg = 0, NDC_max = 0, NDC_min = 1e9;
+        // for (int i = 0; i < n; ++i) {
+        //     NDC_avg += hnsw.test_inter_results[i].NDC;
+        //     NDC_max = std::max(NDC_max, hnsw.test_inter_results[i].NDC);
+        //     NDC_min = std::min(NDC_min, hnsw.test_inter_results[i].NDC);
+        // }
+        // std::cout << (double)NDC_avg / n << std::endl;
+        // std::cout << NDC_min << " " << NDC_max << std::endl;
+        // hnsw.GetComparisonAndClear();
         auto scores = utils::Flatten(dist_all);
         
         float threshold;
@@ -111,7 +118,7 @@ partition_hnns(const std::vector<data_t>& queries_vectors, std::vector<data_t>& 
                 part2.insert(part2.end(), queries_vectors.begin() + i * dim, queries_vectors.begin() + (i + 1) * dim);
             }
         }
-    }
+    // }
     partition_timer.Stop();
     std::cout << "[Partition][HNNS] Partition time: " << partition_timer.GetTime() << std::endl;
     std::cout << "[Partition][HNNS] Part1: " << part1.size() / dim << ", part2: " << part2.size() / dim << std::endl;
@@ -128,15 +135,15 @@ partition_hnns_qonly(const std::vector<data_t>& queries_vectors, std::vector<dat
     size_t n = queries_vectors.size() / dim;
     ids1.clear();   part1.clear();
     ids2.clear();   part2.clear();
-    if (percentage == 0) {
-        part2 = queries_vectors;
-        ids2.resize(n);
-        std::iota(ids2.begin(), ids2.end(), (id_t)0);
-    } else if (percentage == 100) {
-        part1 = queries_vectors;
-        ids1.resize(n);
-        std::iota(ids1.begin(), ids1.end(), (id_t)0);
-    } else {
+    // if (percentage == 0) {
+    //     part2 = queries_vectors;
+    //     ids2.resize(n);
+    //     std::iota(ids2.begin(), ids2.end(), (id_t)0);
+    // } else if (percentage == 100) {
+    //     part1 = queries_vectors;
+    //     ids1.resize(n);
+    //     std::iota(ids1.begin(), ids1.end(), (id_t)0);
+    // } else {
         int64_t out_len;
         double out_result;
         std::vector<double> scores(n);
@@ -160,7 +167,7 @@ partition_hnns_qonly(const std::vector<data_t>& queries_vectors, std::vector<dat
                 part2.insert(part2.end(), queries_vectors.begin() + i * dim, queries_vectors.begin() + (i + 1) * dim);
             }
         }
-    }
+    // }
     partition_timer.Stop();
     std::cout << "[Partition][HNNS] Partition time: " << partition_timer.GetTime() << std::endl;
     std::cout << "[Partition][HNNS] Part1: " << part1.size() / dim << ", part2: " << part2.size() / dim << std::endl;
@@ -363,9 +370,9 @@ int main(int argc, char** argv)
     std::string method = std::string(argv[9]);
     size_t num_cross = 0;
     
-    utils::DataLoader data_loader;
+    utils::DataLoader data_loader(base_name, query_name);
     std::tie(base_vectors, queries_vectors, gt_vectors, cfg)
-         = data_loader.load(base_name, query_name);
+         = data_loader.load();
     if (cfg.metric == 0) {
         metric_cpu = InnerProduct;
         metric_gpu = faiss::MetricType::METRIC_INNER_PRODUCT;
@@ -379,30 +386,30 @@ int main(int argc, char** argv)
     nest_test_vectors.resize(cfg.num_query);
     cfg.num_query = nest_test_vectors.size();
 
-    cout << "Load Data Done!" << endl;
+    std::cout << "Load Data Done!" << std::endl;
 
-    std::string test_full_feats_path = feat_prefix + base_name + 
-        ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
-        ".efs_" + std::to_string(efc) + 
-        ".ck_ts_" + std::to_string(check_stamp) + 
-        ".ncheck_100.recall@1000" + ".test_feats_nn.fvecs";
-    std::string train_full_feats_path = feat_prefix + base_name + 
-        ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
-        ".efs_" + std::to_string(efc) + 
-        ".ck_ts_" + std::to_string(check_stamp) + 
-        ".ncheck_100.recall@1000" + ".train_feats_nn.fvecs";
+    // std::string test_full_feats_path = feat_prefix + base_name + 
+    //     ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
+    //     ".efs_" + std::to_string(efc) + 
+    //     ".ck_ts_" + std::to_string(check_stamp) + 
+    //     ".ncheck_100.recall@1000" + ".test_feats_nn.fvecs";
+    // std::string train_full_feats_path = feat_prefix + base_name + 
+    //     ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
+    //     ".efs_" + std::to_string(efc) + 
+    //     ".ck_ts_" + std::to_string(check_stamp) + 
+    //     ".ncheck_100.recall@1000" + ".train_feats_nn.fvecs";
 
-    std::cout << "test_full_feats_path: " << test_full_feats_path << std::endl;
-    utils::LoadFromFile(test_full_feats, test_full_feats_path);
-    std::cout << "train_full_feats_path: " << train_full_feats_path << std::endl;
-    std::tie(num_full_feat, dim_full_feat) = utils::LoadFromFile(train_full_feats, train_full_feats_path);
+    // std::cout << "test_full_feats_path: " << test_full_feats_path << std::endl;
+    // utils::LoadFromFile(test_full_feats, test_full_feats_path);
+    // std::cout << "train_full_feats_path: " << train_full_feats_path << std::endl;
+    // std::tie(num_full_feat, dim_full_feat) = utils::LoadFromFile(train_full_feats, train_full_feats_path);
 
     size_t num_check = 100;
     size_t ef_construction = 1000;
     std::string graph_path = 
         "/data/disk1/liuchengjun/HNNS/index/" + base_name + "."
-        "M_" + to_string(M) + "." 
-        "efc_" + to_string(ef_construction) + ".hnsw";
+        "M_" + std::to_string(M) + "." 
+        "efc_" + std::to_string(ef_construction) + ".hnsw";
     
     std::string model_classification_path = "/data/disk1/liuchengjun/HNNS/checkpoint/" + base_name + 
         ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
@@ -413,14 +420,14 @@ int main(int argc, char** argv)
     if (method == "hnns_qonly" || method == "hnns_MTL") model_classification_path += ".qonly";
     model_classification_path += ".txt";
 
-    std::string model_regression_path = "/data/disk1/liuchengjun/HNNS/checkpoint/" + base_name + 
-        ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
-        ".efs_" + std::to_string(efc) + 
-        ".ck_ts_" + std::to_string(check_stamp) + 
-        ".ncheck_100.recall@1000.thr_" + std::to_string(threshold) + 
-        ".regression.cross_" + std::to_string(num_cross);
-    if (method == "hnns_qonly" || method == "hnns_MTL") model_regression_path += ".qonly";
-    model_regression_path += ".txt";
+    // std::string model_regression_path = "/data/disk1/liuchengjun/HNNS/checkpoint/" + base_name + 
+    //     ".M_" + std::to_string(M) + ".efc_" + std::to_string(efc) + 
+    //     ".efs_" + std::to_string(efc) + 
+    //     ".ck_ts_" + std::to_string(check_stamp) + 
+    //     ".ncheck_100.recall@1000.thr_" + std::to_string(threshold) + 
+    //     ".regression.cross_" + std::to_string(num_cross);
+    // if (method == "hnns_qonly" || method == "hnns_MTL") model_regression_path += ".qonly";
+    // model_regression_path += ".txt";
 
     std::vector<data_t> test_vector_cpu, test_vector_gpu;
     std::vector<id_t> test_ids_cpu, test_ids_gpu;
@@ -432,7 +439,7 @@ int main(int argc, char** argv)
     std::vector<data_t> dist_gpu(cfg.num_query * k_gpu);
 
     std::thread gpu_thread;
-    int device = 4;
+    int device = 7;
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
@@ -444,21 +451,21 @@ int main(int argc, char** argv)
     std::string query_dataset = utils::split(query_name, '.')[0];
     std::string graph_learn_path = 
         "/data/disk1/liuchengjun/HNNS/index/" + query_dataset + ".learn."
-        "M_" + to_string(8) + "." 
-        "efc_" + to_string(50) + ".hnsw";
+        "M_" + std::to_string(8) + "." 
+        "efc_" + std::to_string(50) + ".hnsw";
 
     auto hnsw = std::make_unique<anns::graph::HNSW<data_t>> (
         base_vectors, graph_path, base_name,
         k, check_stamp, metric_cpu);
-    // replace the last "query" with "learn"
-    size_t last_query_pos = cfg.query_path.find("query.");
-    assert (last_query_pos != std::string::npos);
-    std::string learn_path = cfg.query_path.substr(0, last_query_pos) + "learn." + cfg.query_path.substr(last_query_pos + 6);
-    auto [num_train, dim_train] = utils::LoadFromFile(learn_vectors, learn_path);
-    std::cout << "num_train: " << num_train << ", dim_train: " << dim_train << std::endl;
-    auto hnsw_learn = std::make_unique<anns::graph::HNSW<data_t>> (
-        learn_vectors, graph_learn_path, query_dataset + ".learn",
-        k, check_stamp, metric_cpu);
+    // // replace the last "query" with "learn"
+    // size_t last_query_pos = cfg.query_path.find("query.");
+    // assert (last_query_pos != std::string::npos);
+    // std::string learn_path = cfg.query_path.substr(0, last_query_pos) + "learn." + cfg.query_path.substr(last_query_pos + 6);
+    // auto [num_train, dim_train] = utils::LoadFromFile(learn_vectors, learn_path);
+    // std::cout << "num_train: " << num_train << ", dim_train: " << dim_train << std::endl;
+    // auto hnsw_learn = std::make_unique<anns::graph::HNSW<data_t>> (
+    //     learn_vectors, graph_learn_path, query_dataset + ".learn",
+    //     k, check_stamp, metric_cpu);
     hnsw->SetNumThreads(num_thread);
     gpu_thread.join();
 
@@ -471,8 +478,8 @@ int main(int argc, char** argv)
     } else {
         std::cout << "[LightGBM] Failed to load model." << std::endl;
     }
-    std::cout << "[LightGBM] model_classification_path: " << model_regression_path << std::endl;
-    result = LGBM_BoosterCreateFromModelfile(model_regression_path.data(), &out_num_iterations, &handle_regression);
+    // std::cout << "[LightGBM] model_classification_path: " << model_regression_path << std::endl;
+    // result = LGBM_BoosterCreateFromModelfile(model_regression_path.data(), &out_num_iterations, &handle_regression);
     if (result == 0) {
         // hnsw->LoadLightGBM(handle_regression);
         std::cout << "[LightGBM] Model loaded successfully." << std::endl;
@@ -487,13 +494,13 @@ int main(int argc, char** argv)
     hnsw->GetComparisonAndClear();
     size_t nq_cpu, nq_gpu;
     std::vector<int> pcts = {
-        0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50
+        // 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50
         // , 55, 60, 65, 
         // 70, 72, 74, 76, 78, 
         // 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 
         // 95, 96, 97, 98, 99, 100
     };
-    for (int pct = 51; pct <= 100; pct += 1) {
+    for (int pct = 0; pct <= 100; pct += 2) {
         pcts.push_back(pct);
     }
     std::reverse(pcts.begin(), pcts.end());
@@ -537,15 +544,18 @@ int main(int argc, char** argv)
                         gpu_index.search(nq_gpu, test_vector_gpu.data(), k_gpu, dist_gpu.data(), knn_gpu.data());
                     });
                 }
-                // hnsw->SearchHNNS(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / cfg.dim_query, cfg.dim_query), 
-                //     k, efq, knn_cpu, dist_cpu, test_ids_cpu, 1);
-                hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / cfg.dim_query, cfg.dim_query), 
-                    k, efq, knn_cpu, dist_cpu);
+                hnsw_timer.Reset();    hnsw_timer.Start();
+                hnsw->SearchHNNS(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / cfg.dim_query, cfg.dim_query), 
+                    k, efq, knn_cpu, dist_cpu, test_ids_cpu, 1);
+                // hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / cfg.dim_query, cfg.dim_query), 
+                //     k, efq, knn_cpu, dist_cpu);
+                hnsw_timer.Stop();
                 if (nq_gpu > 0) {
                     gpu_thread.join();
                 }
                 e2e_timer.Stop();
                 // hnsw->Reset();
+                std::cout << "[Query][HNNS] HNSW time: " << hnsw_timer.GetTime() << std::endl;
                 std::cout << "[Query][HNNS] E2E time: " << e2e_timer.GetTime() << std::endl;
             } else if (method == "hnns_qonly") {
                 knn_all.clear();         dist_all.clear();
@@ -592,27 +602,27 @@ int main(int argc, char** argv)
                 std::cout << "[Query][HNNS] HNSW time: " << hnsw_timer.GetTime() << std::endl;
                 std::cout << "[Query][HNNS] E2E time: " << e2e_timer.GetTime() << std::endl;
             } else if (method == "hnns_approximate") {
-                knn_all.clear();         dist_all.clear();
-                e2e_timer.Reset();    e2e_timer.Start();
-                std::tie(nq_cpu, nq_gpu) = partition_hnns_approximate_feat(queries_vectors, test_vector_cpu, test_vector_gpu, test_ids_cpu, test_ids_gpu, cfg.dim_base, train_full_feats, *hnsw_learn, pct);
-                knn_gpu.resize(nq_gpu * k_gpu);
-                dist_gpu.resize(nq_gpu * k_gpu);
+                // knn_all.clear();         dist_all.clear();
+                // e2e_timer.Reset();    e2e_timer.Start();
+                // std::tie(nq_cpu, nq_gpu) = partition_hnns_approximate_feat(queries_vectors, test_vector_cpu, test_vector_gpu, test_ids_cpu, test_ids_gpu, cfg.dim_base, train_full_feats, *hnsw_learn, pct);
+                // knn_gpu.resize(nq_gpu * k_gpu);
+                // dist_gpu.resize(nq_gpu * k_gpu);
 
-                if (nq_gpu > 0) {
-                    gpu_thread = std::thread([&gpu_index, &test_vector_gpu, &knn_gpu, &dist_gpu, &nq_gpu] {
-                        gpu_index.search(nq_gpu, test_vector_gpu.data(), k_gpu, dist_gpu.data(), knn_gpu.data());
-                    });
-                }
-                hnsw_timer.Reset();    hnsw_timer.Start();
-                hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / cfg.dim_query, cfg.dim_query), 
-                    k, efq, knn_cpu, dist_cpu);
-                hnsw_timer.Stop();
-                if (nq_gpu > 0) {
-                    gpu_thread.join();
-                }
-                e2e_timer.Stop();
-                std::cout << "[Query][HNNS] HNSW time: " << hnsw_timer.GetTime() << std::endl;
-                std::cout << "[Query][HNNS] E2E time: " << e2e_timer.GetTime() << std::endl;
+                // if (nq_gpu > 0) {
+                //     gpu_thread = std::thread([&gpu_index, &test_vector_gpu, &knn_gpu, &dist_gpu, &nq_gpu] {
+                //         gpu_index.search(nq_gpu, test_vector_gpu.data(), k_gpu, dist_gpu.data(), knn_gpu.data());
+                //     });
+                // }
+                // hnsw_timer.Reset();    hnsw_timer.Start();
+                // hnsw->Search(utils::Nest(std::move(test_vector_cpu), test_vector_cpu.size() / cfg.dim_query, cfg.dim_query), 
+                //     k, efq, knn_cpu, dist_cpu);
+                // hnsw_timer.Stop();
+                // if (nq_gpu > 0) {
+                //     gpu_thread.join();
+                // }
+                // e2e_timer.Stop();
+                // std::cout << "[Query][HNNS] HNSW time: " << hnsw_timer.GetTime() << std::endl;
+                // std::cout << "[Query][HNNS] E2E time: " << e2e_timer.GetTime() << std::endl;
             } else if (method == "hnns_MTL") {
                 knn_all.clear();         dist_all.clear();
                 e2e_timer.Reset();    e2e_timer.Start();
@@ -668,10 +678,10 @@ int main(int argc, char** argv)
         for (int ck = k; ck <= k; ck *= 10) {
             size_t num_recall = 0, num_recall_cpu = 0, num_recall_gpu = 0;
             for (int i = 0; i < test_ids_cpu.size(); ++i) {
-                num_recall_cpu += utils::GetRecallCount(ck, cfg.dim_gt, gt_vectors, knn_cpu[i], test_ids_cpu[i]);
+                num_recall_cpu += utils::GetRecallCount(ck, cfg.dim_query_gt, gt_vectors, knn_cpu[i], test_ids_cpu[i]);
             }
             for (int i = 0; i < test_ids_gpu.size(); ++i) {
-                num_recall_gpu += utils::GetRecallCount(ck, cfg.dim_gt, gt_vectors, nested_knn_gpu[i], test_ids_gpu[i]);
+                num_recall_gpu += utils::GetRecallCount(ck, cfg.dim_query_gt, gt_vectors, nested_knn_gpu[i], test_ids_gpu[i]);
             }
             num_recall = num_recall_cpu + num_recall_gpu;
             // std::cout << "[Query][CPU] Recall@" << ck << ": " << (double)num_recall_cpu / test_ids_cpu.size() / ck << std::endl;

@@ -36,6 +36,14 @@ int main(int argc, char** argv)
         std::cout << "[Metric] L2" << std::endl;
     }
     auto nest_test_vectors = utils::Nest(std::move(query_vectors), cfg.num_query, cfg.dim_query);
+
+    // // query mask
+    // cfg.query_gt_path += ".mask1";
+    // for (auto &v : nest_test_vectors) {
+    //     for (size_t d = 0; d < cfg.dim_query / 2; ++d) {
+    //         v[d] = 0.;
+    //     }
+    // }
     
     base_vectors.resize(cfg.num_base * cfg.dim_base / 1);
     cfg.num_base = base_vectors.size() / cfg.dim_base;
@@ -49,7 +57,7 @@ int main(int argc, char** argv)
     size_t num_check = 100;
 
     utils::Timer build_timer, query_timer;
-    size_t efq = 10000;
+    size_t efq = efconsturct;
     
     std::string index_path = 
         // "../index/" + base_name + "."

@@ -368,6 +368,7 @@ int main(int argc, char** argv)
     size_t check_stamp = std::stol(argv[7]);
     size_t threshold = std::stol(argv[8]);
     std::string method = std::string(argv[9]);
+    int device = atoi(argv[10]);
     size_t num_cross = 0;
     
     utils::DataLoader data_loader(base_name, query_name);
@@ -439,7 +440,6 @@ int main(int argc, char** argv)
     std::vector<data_t> dist_gpu(cfg.num_query * k_gpu);
 
     std::thread gpu_thread;
-    int device = 7;
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;

@@ -68,17 +68,22 @@ namespace utils
             base_path = base_prefix + base_tokens[0] + "/" + base_tokens[1] + ".";
 
             if (base_tokens[0] == "imagenet" || base_tokens[0] == "wikipedia" 
-                || base_tokens[0] == "datacomp-image" || base_tokens[0] == "datacomp-text")
+                || base_tokens[0] == "datacomp-image" || base_tokens[0] == "datacomp-text"
+                || base_tokens[0] == "datacomp-combined")
             {
                 if (base_tokens[0].substr(0, 8) == "datacomp") {
                     if (base_tokens[0] == "datacomp-text") {
                         base_path += "t.";
-                    } else {
+                    } else if (base_tokens[0] == "datacomp-image") {
                         base_path += "i.";
+                    } else if (base_tokens[0] == "datacomp-combined") {
+                        base_path += "i.t.";
                     }
                 }
                 base_path += "norm.fvecs";
-            } else {
+            } else if (base_tokens[0] == "deep100m") {
+                base_path += "fvecs";
+            } else if (base_tokens[0] == "spacev100m") {
                 base_path += "fvecs";
             }
             std::cout << "[Dataloader] base_path: " << base_path << std::endl;
@@ -92,15 +97,19 @@ namespace utils
             learn_path += "learn.";
 
             if (query_tokens[0] == "imagenet" || query_tokens[0] == "wikipedia"
-                || query_tokens[0] == "datacomp-image" || query_tokens[0] == "datacomp-text") 
+                || query_tokens[0] == "datacomp-image" || query_tokens[0] == "datacomp-text"
+                || query_tokens[0] == "datacomp-combined") 
             {
                 if (query_tokens[0].substr(0, 8) == "datacomp") {
                     if (query_tokens[0] == "datacomp-text") {
                         query_path += "t.";
                         learn_path += "t.";
-                    } else {
+                    } else if (query_tokens[0] == "datacomp-image") {
                         query_path += "i.";
                         learn_path += "i.";
+                    } else if (query_tokens[0] == "datacomp-combined") {
+                        query_path += "i.t.";
+                        learn_path += "i.t.";
                     }
                 }
                 query_path += "norm.fvecs";
@@ -148,7 +157,8 @@ namespace utils
             std::cout << "[Dataloader] learn_gt_path: " << learn_gt_path << std::endl;
 
             if (base_tokens[0] == "imagenet" || base_tokens[0] == "wikipedia"
-                || base_tokens[0] == "datacomp-image" || base_tokens[0] == "datacomp-text") {
+                || base_tokens[0] == "datacomp-image" || base_tokens[0] == "datacomp-text"
+                || base_tokens[0] == "datacomp-combined") {
                 metric = 0;
             } else {
                 metric = 1;

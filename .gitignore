@@ -36,6 +36,7 @@ index/
 log/
 
 *.png
+*.pdf
 
 # python files
 __pycache__/

@@ -70,6 +70,7 @@ int main(int argc, char** argv)
         base_vectors, index_path, base_name,
         k, check_stamp, metric);
     hnsw->SetNumThreads(96);
+    // hnsw->LoadGT(query_gt_vectors, learn_gt_vectors);
 
     build_timer.Start();
     // hnsw->BuildIndex(base_vectors);

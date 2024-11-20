@@ -71,6 +71,7 @@ message(${TEST_DIR})
 
 # file(GLOB TEST_LIST ${TEST_DIR}/*.cpp)
 set(TEST_LIST
+    ${TEST_DIR}/difficulty.cpp
     ${TEST_DIR}/flat_cpu.cpp
     ${TEST_DIR}/flat_gpu.cpp
     ${TEST_DIR}/gt_cpu.cpp

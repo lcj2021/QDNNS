@@ -10,22 +10,26 @@ import argparse
 
 argparse = argparse.ArgumentParser()
 argparse.add_argument('--threshold', type=int, default=1000)
+argparse.add_argument('--qonly', type=bool, default=False)
+threshold = argparse.parse_args().threshold
+query_only = argparse.parse_args().qonly
 
 dataset = 'gist1m'
-dataset = 'datacomp-text.base'
-dataset = 'imagenet.base'
 dataset = 'wikipedia.base'
-dataset = 'datacomp-image.base'
+dataset = 'spacev100m.base'
+dataset = 'imagenet.base'
 dataset = 'deep100m.base'
+dataset = 'datacomp-text.base'
+dataset = 'datacomp-image.base'
 config = json.loads(open('config.json').read())
 M, efs = config[dataset]["M"], config[dataset]["efs"]
+threshold = config[dataset]["best_thr"]
 
-threshold = argparse.parse_args().threshold
+print(threshold, query_only)
 dim = config[dataset]["dim"]
 efc = 1000
 ck_ts = 1000
 k = 1000
-query_only = True
 topk = 0
 
 data_prefix = '/data/disk1/liuchengjun/HNNS/sample/'
@@ -54,6 +58,7 @@ train_label_regression = np.log2(train_comps + 1)
 test_label_regression = np.log2(test_comps + 1)
 
 print(np.sum(test_label_classification), np.sum(train_label_classification))
+print(f'avg recall: {np.mean(train_number_recall)}')
 
 # 计算方差最大的top10个特征
 variances = np.var(train_feature, axis=0)
@@ -139,16 +144,16 @@ else:
     gbm_classification.save_model(checkpoint_classification_path)
     print('[Checkpoint] Done!')
     
-if os.path.exists(checkpoint_regression_path):
-    print(f'[Checkpoint] {checkpoint_regression_path} exist!')
-    gbm_regression = lgb.Booster(model_file = checkpoint_regression_path)
-    print('[Checkpoint] Loaded!')
-else:
-    print(f'[Checkpoint] {checkpoint_regression_path} not exist!')
-    print('[Checkpoint] Training!')
-    gbm_regression = lgb.train(params_regression, lgb.Dataset(df.values, label=train_label_regression))
-    gbm_regression.save_model(checkpoint_regression_path)
-    print('[Checkpoint] Done!')
+# if os.path.exists(checkpoint_regression_path):
+#     print(f'[Checkpoint] {checkpoint_regression_path} exist!')
+#     gbm_regression = lgb.Booster(model_file = checkpoint_regression_path)
+#     print('[Checkpoint] Loaded!')
+# else:
+#     print(f'[Checkpoint] {checkpoint_regression_path} not exist!')
+#     print('[Checkpoint] Training!')
+#     gbm_regression = lgb.train(params_regression, lgb.Dataset(df.values, label=train_label_regression))
+#     gbm_regression.save_model(checkpoint_regression_path)
+#     print('[Checkpoint] Done!')
 
 train_pred_classification = gbm_classification.predict(train_feature)
 sorted_train_pred_classification = np.sort(train_pred_classification)
@@ -156,10 +161,17 @@ sorted_train_pred_classification = np.sort(train_pred_classification)
 importance_classification = gbm_classification.feature_importance()
 feature_names = df.columns
 query_imp, update_imp, dist_imp, degree_imp, cross_imp = 0, 0, 0, 0, 0
+update_imp_0, update_imp_1, update_imp_2 = 0, 0, 0
 for f, imp in zip(feature_names, importance_classification):
     if f.startswith('query'):
         query_imp += imp
     elif f.startswith('update'):
+        if f.endswith('0'):
+            update_imp_0 += imp
+        elif f.endswith('1'):
+            update_imp_1 += imp
+        elif f.endswith('2'):
+            update_imp_2 += imp
         update_imp += imp
     elif f.startswith('dist'):
         dist_imp += imp
@@ -169,9 +181,10 @@ for f, imp in zip(feature_names, importance_classification):
         cross_imp += imp
     # print(f, imp)
 print(f'importance_classification \
-      query: {query_imp / dim}, update: {update_imp / 3}, degree: {degree_imp / 10},    \
-      dist: {dist_imp / 100}, cross: {0 if topk==0 else cross_imp / (topk * (topk - 1) / 2)}')
-
+      query: {query_imp / dim:.2f}, update: {update_imp / 3}, degree: {degree_imp / 10:.2f},    \
+      dist: {dist_imp / 100:.2f}, cross: {0 if topk==0 else cross_imp / (topk * (topk - 1) / 2)}')
+print(f'update importance_classification \
+      update0: {update_imp_0:.2f}, update1: {update_imp_1:.2f}, update2: {update_imp_2:.2f}')
 ##################################################  ##################################################
 
 from sklearn.metrics import recall_score
@@ -185,8 +198,8 @@ from scipy.integrate import trapezoid as trapz
 
 start = time.time()
 label_pred_classification = gbm_classification.predict(test_feature)
-label_pred_regression = gbm_regression.predict(test_feature)
-label_pred_combined = (label_pred_classification) * (label_pred_regression)
+# label_pred_regression = gbm_regression.predict(test_feature)
+# label_pred_combined = (label_pred_classification) * (label_pred_regression)
 label_pred_combined = label_pred_classification
 # label_pred_combined = label_pred_regression
 end = time.time()
@@ -241,17 +254,19 @@ heatmap = np.log10(origin_heatmap + 1)
 
 hm = plt.imshow(heatmap.T, origin = 'lower', extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]], aspect = 'auto', cmap = 'viridis')
 
-plt.xlabel(f'number_recall / 1000 nearest neighbors\n{len(train_number_recall)} points')
+plt.xlabel(f'number_recall / 1000 nearest neighbors')
+# plt.xlabel(f'number_recall / 1000 nearest neighbors\n{len(train_number_recall)} points')
 plt.ylabel('NDC')
 # plt.xlim([990, 1000])
 ax = plt.gca()
 ax.invert_xaxis()
-plt.title(f'{prefix}\nHeatmap of number_recall vs NDC')
+# plt.title(f'{prefix}\nHeatmap of number_recall vs NDC')
 cbar = plt.colorbar(hm)
 cbar.set_label('Number of points (log10)')
 
 fig_path = f'{prefix}.Comp_R'
-plt.savefig(fig_path + '.png', dpi=300)
+plt.savefig(fig_path + '.png', dpi=500)
+plt.savefig(fig_path + '.pdf', dpi=500)
 plt.show()
 # for R in range(950, 1001):
 #     print(f'avg comparison for {R/1000}: {np.mean(train_comps[train_number_recall == R]):.2f}')
@@ -267,42 +282,42 @@ print(f'pearsonr: {r:.2f} | p: {p:.2f}')
 
 ##################################################  ##################################################
 
-pct50 = np.percentile(label_pred_combined, 50)
-label_pred_sorted = np.sort(label_pred_combined)
-step = 0.5
-scores = []
-for p in np.arange(0, 100 + step, step):
-    pct_thr = label_pred_sorted[min(int(len(label_pred_sorted) * p / 100), len(label_pred_sorted) - 1)]
-    cpu_idx = label_pred_combined < pct_thr
-    gpu_idx = label_pred_combined >= pct_thr
-    cpu_recall_cnt = test_number_recall[cpu_idx]
-    overall_recall = (np.sum(cpu_recall_cnt) + 1000 * np.sum(gpu_idx)) / len(test_label_classification)
-    # print(f'{p}%->{pct_thr:.2f} | cpu workload: {np.sum(cpu_idx)} | \
-    #     gpu workload: {np.sum(gpu_idx)} | \
-    #     overall recall: {overall_recall:6f}')
-    if overall_recall > 800:
-        scores.append(overall_recall)
+# pct50 = np.percentile(label_pred_combined, 50)
+# label_pred_sorted = np.sort(label_pred_combined)
+# step = 0.5
+# scores = []
+# for p in np.arange(0, 100 + step, step):
+#     pct_thr = label_pred_sorted[min(int(len(label_pred_sorted) * p / 100), len(label_pred_sorted) - 1)]
+#     cpu_idx = label_pred_combined < pct_thr
+#     gpu_idx = label_pred_combined >= pct_thr
+#     cpu_recall_cnt = test_number_recall[cpu_idx]
+#     overall_recall = (np.sum(cpu_recall_cnt) + 1000 * np.sum(gpu_idx)) / len(test_label_classification)
+#     # print(f'{p}%->{pct_thr:.2f} | cpu workload: {np.sum(cpu_idx)} | \
+#     #     gpu workload: {np.sum(gpu_idx)} | \
+#     #     overall recall: {overall_recall:6f}')
+#     if overall_recall > 600:
+#         scores.append(overall_recall)
 
-scores = np.array(scores)
-print(f'avg scores: {np.mean(scores):.2f}')
+# scores = np.array(scores)
+# print(f'avg scores: {np.mean(scores):.2f}')
 
-print(f'test_comps: {np.mean(test_comps):.2f}')
-print(f'test_comps: {np.sum(test_label_classification)} / {len(test_label_classification)}')
-index = np.arange(len(test_label_classification))
-print("*" * 100)
+# print(f'test_comps: {np.mean(test_comps):.2f}')
+# print(f'test_comps: {np.sum(test_label_classification)} / {len(test_label_classification)}')
+# index = np.arange(len(test_label_classification))
+# print("*" * 100)
 
-hnns_cpu_idx, hnns_gpu_idx = label_pred_combined < pct50, label_pred_combined >= pct50
-hnns_cpu_comps, hnns_gpu_comps = test_comps[hnns_cpu_idx], test_comps[hnns_gpu_idx]
-hnns_miss = test_label_classification[hnns_cpu_idx]
-print(f'hnns_cpu_comps: {np.mean(hnns_cpu_comps):.2f} | count: {len(hnns_cpu_comps)}')
-print(f'hnns_gpu_comps: {np.mean(hnns_gpu_comps):.2f} | count: {len(hnns_gpu_comps)}')
-print(f'hnns_miss: {np.sum(hnns_miss)}')
-print()
+# hnns_cpu_idx, hnns_gpu_idx = label_pred_combined < pct50, label_pred_combined >= pct50
+# hnns_cpu_comps, hnns_gpu_comps = test_comps[hnns_cpu_idx], test_comps[hnns_gpu_idx]
+# hnns_miss = test_label_classification[hnns_cpu_idx]
+# print(f'hnns_cpu_comps: {np.mean(hnns_cpu_comps):.2f} | count: {len(hnns_cpu_comps)}')
+# print(f'hnns_gpu_comps: {np.mean(hnns_gpu_comps):.2f} | count: {len(hnns_gpu_comps)}')
+# print(f'hnns_miss: {np.sum(hnns_miss)}')
+# print()
 
-random_cpu_idx, random_gpu_idx = train_test_split(index, test_size = 0.5, random_state = 42)
-random_cpu_comps, random_gpu_comps = test_comps[random_cpu_idx], test_comps[random_gpu_idx]
-random_miss = test_label_classification[random_cpu_idx]
-print(f'random_cpu_comps: {np.mean(random_cpu_comps):.2f} | count: {len(random_cpu_comps)}')
-print(f'random_gpu_comps: {np.mean(random_gpu_comps):.2f} | count: {len(random_gpu_comps)}')
-print(f'random_miss: {np.sum(random_miss)}')
-print()
+# random_cpu_idx, random_gpu_idx = train_test_split(index, test_size = 0.5, random_state = 42)
+# random_cpu_comps, random_gpu_comps = test_comps[random_cpu_idx], test_comps[random_gpu_idx]
+# random_miss = test_label_classification[random_cpu_idx]
+# print(f'random_cpu_comps: {np.mean(random_cpu_comps):.2f} | count: {len(random_cpu_comps)}')
+# print(f'random_gpu_comps: {np.mean(random_gpu_comps):.2f} | count: {len(random_gpu_comps)}')
+# print(f'random_miss: {np.sum(random_miss)}')
+# print()

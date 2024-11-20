@@ -31,6 +31,7 @@ std::map<std::string, int> dataset_threshold {
     {"deep100m", 979},
     {"wikipedia", 951},
     {"datacomp-image", 699},
+    {"spacev100m", 800},
 };
 
 namespace anns
@@ -40,20 +41,20 @@ namespace anns
   {
     struct IntermediateResult
     {
-        std::priority_queue<std::pair<float, id_t>> top_candidates, candidate_set;
+        // std::priority_queue<std::pair<float, id_t>> top_candidates, candidate_set;
         bool ready = false;
-        std::vector<id_t> visited;
-        float low_bound;
-        size_t NDC = 0;
+        // std::vector<id_t> visited;
+        // float low_bound;
+        // size_t NDC = 0;
         id_t enterpoint_node = MAGIC_VEC_ID;
         IntermediateResult(size_t check_stamp)
         {
-            top_candidates = std::priority_queue<std::pair<float, id_t>>();
-            candidate_set = std::priority_queue<std::pair<float, id_t>>();
+            // top_candidates = std::priority_queue<std::pair<float, id_t>>();
+            // candidate_set = std::priority_queue<std::pair<float, id_t>>();
             ready = false;
-            visited.reserve(check_stamp);
-            low_bound = std::numeric_limits<float>::max();
-            NDC = 0;
+            // visited.reserve(check_stamp);
+            // low_bound = std::numeric_limits<float>::max();
+            // NDC = 0;
             enterpoint_node = MAGIC_VEC_ID;
         }
     };
@@ -1313,6 +1314,8 @@ namespace anns
                 "ck_ts_" + std::to_string(check_stamp) + "."
                 "ncheck_" + std::to_string(num_check) + "."
                 "recall@" + std::to_string(recall_at_k);
+            
+            this->prefix += ".IID";
 
             size_t train_label_postive = 0, test_label_postive = 0;
             for (int i = 0; i < train_label.size(); ++i) {
@@ -1346,10 +1349,29 @@ namespace anns
             // utils::WriteToFile<float>(utils::Flatten(train_feats_lgb_valid), {train_feats_lgb_valid.size(), train_feats_lgb_valid[0].size()}, data_prefix + this->prefix + ".train_feats_lgb.fvecs");
         }
 
-        void Reset() 
+        // void Reset() 
+        // {
+        //     test_inter_results.clear();
+        //     test_inter_results.resize(test_label.size(), IntermediateResult(check_stamp));
+        // }
+        void LoadGT(std::vector<id_t>& query_gt, std::vector<id_t>& learn_gt)
         {
-            test_inter_results.clear();
-            test_inter_results.resize(test_label.size(), IntermediateResult(check_stamp));
+            num_test = query_gt.size() / 1000;
+            num_train = learn_gt.size() / 1000;
+            
+            test_gt = query_gt;
+            train_gt = learn_gt;
+            
+            std::cout << "num_test: " << num_test << std::endl;
+            std::cout << "num_train: " << num_train << std::endl;
+
+            train_feats_nn.resize(num_train);
+            train_feats_lgb.resize(num_train);
+            train_label.resize(num_train);
+            test_feats_nn.resize(num_test);
+            test_feats_lgb.resize(num_test);
+            test_label.resize(num_test);
+            test_inter_results.resize(num_test, IntermediateResult(check_stamp));
         }
 
         void LoadLightGBM(BoosterHandle handle)

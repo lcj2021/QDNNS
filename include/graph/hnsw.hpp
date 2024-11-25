@@ -867,9 +867,6 @@ namespace anns
         std::priority_queue<std::pair<float, id_t>> SearchBaseLayerGetData(id_t ep_id, const data_t *data_point, int level, size_t ef, id_t qid, int data_type)
         {
             size_t comparison = 0;
-            size_t num_lookback = 0;
-            size_t num_pop = 0;
-            size_t num_lb_update = 0;
             std::vector<bool> mass_visited(cur_element_count_, false);
             std::priority_queue<std::pair<float, id_t>> top_candidates;
             std::priority_queue<std::pair<float, id_t>> candidate_set;
@@ -910,43 +907,32 @@ namespace anns
 
                         float dist = distance(data_point, data_memory_[neighbor_id], D_);
                         comparison++;
-                        if (!is_checked && dist > dist_start) {
-                            num_lookback++;
+
+                        if (comparison == check_stamp) 
+                        {
+                            is_checked = true;
+                            auto top_candidates_backup = top_candidates;
+                            std::vector<std::pair<float, id_t>> check_candidates;
+
+                            while (top_candidates_backup.size()) {
+                                auto curr_el_pair = top_candidates_backup.top();
+                                top_candidates_backup.pop();
+                                check_candidates.emplace_back(curr_el_pair);
+                            }
+                            std::reverse(check_candidates.begin(), check_candidates.end());
+                            check_candidates.resize(num_check);
+
+                            for (int d = 0; d < D_; ++d) {
+                                vec_feats_lgb.emplace_back(data_point[d]);
+                            }
+
+                            vec_feats_lgb.emplace_back(-dist_start);
+                            vec_feats_lgb.emplace_back(-check_candidates[0].first);
+                            vec_feats_lgb.emplace_back(-check_candidates[9].first);
+                            vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
+                            vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
+
                         }
-
-                        // if (comparison == check_stamp) 
-                        // {
-                        //     is_checked = true;
-                        //     auto top_candidates_backup = top_candidates;
-                        //     std::vector<std::pair<float, id_t>> check_candidates;
-
-                        //     while (top_candidates_backup.size()) {
-                        //         auto curr_el_pair = top_candidates_backup.top();
-                        //         top_candidates_backup.pop();
-                        //         check_candidates.emplace_back(curr_el_pair);
-                        //     }
-                        //     std::reverse(check_candidates.begin(), check_candidates.end());
-                        //     check_candidates.resize(num_check);
-
-                        //     for (int d = 0; d < D_; ++d) {
-                        //         vec_feats_lgb.emplace_back(data_point[d]);
-                        //         vec_feats_hnns.emplace_back(data_point[d]);
-                        //     }
-
-                        //     vec_feats_lgb.emplace_back(-dist_start);
-                        //     vec_feats_lgb.emplace_back(-check_candidates[0].first);
-                        //     vec_feats_lgb.emplace_back(-check_candidates[9].first);
-                        //     vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
-                        //     vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
-
-                        //     for (int i = 0; i < check_candidates.size(); ++i) {
-                        //         vec_feats_hnns.emplace_back(check_candidates[i].first);
-                        //         // vec_feats_hnns.emplace_back(check_candidates[i].first / dist_start);
-                        //     }
-                        //     vec_feats_hnns.emplace_back(num_lookback);
-                        //     vec_feats_hnns.emplace_back(num_pop);
-                        //     vec_feats_hnns.emplace_back(num_lb_update);
-                        // }
 
                         /// @brief If neighbor is closer than farest vector in top result, and result.size still less than ef
                         if (top_candidates.top().first > dist || top_candidates.size() < ef)
@@ -957,13 +943,11 @@ namespace anns
                             // give up farest result so far
                             if (top_candidates.size() > ef) {
                                 top_candidates.pop();
-                                num_pop++;
                             }
                             
 
                             if (top_candidates.size()) {
                                 low_bound = top_candidates.top().first;
-                                num_lb_update++;
                             }
                         }
                     }
@@ -985,6 +969,28 @@ namespace anns
             vec_label.emplace_back(comparison);
 
             comparison_.fetch_add(comparison);
+            if (!is_checked) {
+                auto top_candidates_backup = top_candidates;
+                std::vector<std::pair<float, id_t>> check_candidates;
+
+                while (top_candidates_backup.size()) {
+                    auto curr_el_pair = top_candidates_backup.top();
+                    top_candidates_backup.pop();
+                    check_candidates.emplace_back(curr_el_pair);
+                }
+                std::reverse(check_candidates.begin(), check_candidates.end());
+                check_candidates.resize(num_check);
+
+                for (int d = 0; d < D_; ++d) {
+                    vec_feats_lgb.emplace_back(data_point[d]);
+                }
+
+                vec_feats_lgb.emplace_back(-dist_start);
+                vec_feats_lgb.emplace_back(-check_candidates[0].first);
+                vec_feats_lgb.emplace_back(-check_candidates[9].first);
+                vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
+                vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
+            }
             return top_candidates;
         }
 
@@ -1302,9 +1308,228 @@ namespace anns
             return top_candidates;
         }
       
-        void SaveData(std::string data_prefix, size_t ef_search)
+        void SearchEarlyStop(const std::vector<std::vector<data_t>> &queries, size_t k, size_t ef, std::vector<std::vector<id_t>> &vids, std::vector<std::vector<float>> &dists, 
+        std::vector<id_t> &qids, int data_type)
+        {
+            size_t nq = queries.size();
+            vids.clear();
+            dists.clear();
+            vids.resize(nq);
+            dists.resize(nq);
+
+            if (data_type == 0) {
+            #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
+                for (size_t i = 0; i < nq; i++)
+                {
+                    const auto &query = queries[i];
+                    auto &score = dists[i];
+                    auto r = SearchEarlyStop(query.data(), k, ef, qids[i], 0);
+                    score.emplace_back(r.top().first);
+                }
+            } else {
+            #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads_)
+                for (size_t qid = 0; qid < nq; qid++)
+                {
+                    const auto &query = queries[qid];
+                    auto &vid = vids[qid];
+                    auto &dist = dists[qid];
+                    
+                    auto r = SearchEarlyStop(query.data(), k, ef, qids[qid], data_type);
+                    vid.reserve(r.size());
+                    dist.reserve(r.size());
+                    while (r.size())
+                    {
+                        const auto &te = r.top();
+                        vid.emplace_back(te.second);
+                        dist.emplace_back(te.first);
+                        r.pop();
+                    }
+                    std::reverse(vid.begin(), vid.end());
+                    if (rand() % 10000 < 1) {
+                        std::cout << "SearchEarlyStop: " << qid << " / " << nq << std::endl;
+                    }
+
+                }
+            }
+        }
+
+        std::priority_queue<std::pair<float, id_t>> SearchEarlyStop(const data_t *query_data, size_t k, size_t ef, id_t qid, int data_type)
+        {
+            assert(ef >= k && "ef > k!");
+
+            if (cur_element_count_ == 0)
+                return std::priority_queue<std::pair<float, id_t>>();
+
+            size_t comparison = 0;
+            id_t cur_obj = enterpoint_node_;
+            float cur_dist = distance(query_data, data_memory_[enterpoint_node_], D_);
+            comparison++;
+
+            for (int lev = element_levels_[enterpoint_node_]; lev > 0; lev--)
+            {
+                bool changed = true;
+                while (changed)
+                {
+                    changed = false;
+                    const auto& neighbors = link_lists_[cur_obj][lev];
+                    size_t num_neighbors = neighbors.size();
+
+                    for (size_t i = 0; i < num_neighbors; i++)
+                    {
+                        id_t cand = neighbors[i];
+                        float d = distance(query_data, data_memory_[cand], D_);
+                        if (d < cur_dist)
+                        {
+                            cur_dist = d;
+                            cur_obj = cand;
+                            changed = true;
+                        }
+                    }
+                    comparison += num_neighbors;
+                }
+            }
+
+            auto top_candidates = SearchBaseLayerEarlyStop(cur_obj, query_data, 0, ef, qid, data_type);
+
+            while (top_candidates.size() > k)
+            {
+                top_candidates.pop();
+            }
+
+            comparison_.fetch_add(comparison);
+
+            return top_candidates;
+        }
+
+        // 0: for 1st stage LightGBM inference; 1: for 2nd stage search
+        std::priority_queue<std::pair<float, id_t>> SearchBaseLayerEarlyStop(id_t ep_id, const data_t *data_point, int level, size_t ef, id_t qid, int data_type)
+        {
+            size_t comparison = 0;
+            auto &vec_feats_lgb = test_feats_lgb[qid];
+            if (data_type == 0) vec_feats_lgb.clear();
+
+            // bool first_stage_ready = test_inter_results[qid].ready;
+            float low_bound;
+            float dist_start;    // For SIGMOD20 lightgbm
+            std::vector<bool> mass_visited(cur_element_count_, false);
+            std::vector<id_t> visited;
+            std::priority_queue<std::pair<float, id_t>> top_candidates;
+            std::priority_queue<std::pair<float, id_t>> candidate_set;
+            // if (first_stage_ready) {
+            // // if (false) {
+            //     std::swap(test_inter_results[qid].top_candidates, top_candidates);
+            //     std::swap(test_inter_results[qid].candidate_set, candidate_set);
+            //     std::swap(test_inter_results[qid].visited, visited);
+            //     std::swap(test_inter_results[qid].low_bound, low_bound);
+            //     for (auto &v: visited) 
+            //         mass_visited[v] = true;
+            // } else {
+                float dist = distance(data_point, data_memory_[ep_id], D_);
+                comparison++;
+                top_candidates.emplace(dist, ep_id); // max heap
+                candidate_set.emplace(-dist, ep_id); // min heap
+
+                mass_visited[ep_id] = true;
+                visited.emplace_back(ep_id);
+
+                low_bound = dist;
+                dist_start = dist;    // For SIGMOD20 lightgbm
+            // }
+
+            bool is_checked = false;
+
+            while (candidate_set.size())
+            {
+                auto curr_el_pair = candidate_set.top();
+                if (-curr_el_pair.first > low_bound && top_candidates.size() == ef)
+                    break;
+                candidate_set.pop();
+                id_t curr_node_id = curr_el_pair.second;
+                std::unique_lock<std::mutex> lock(*link_list_locks_[curr_node_id]);
+                const auto& neighbors = link_lists_[curr_node_id][level];
+
+                for (id_t neighbor_id: neighbors)
+                {
+                    if (mass_visited[neighbor_id] == false)
+                    {
+                        mass_visited[neighbor_id] = true;
+                        visited.emplace_back(neighbor_id);
+
+                        float dist = distance(data_point, data_memory_[neighbor_id], D_);
+                        comparison++;
+
+                        if (data_type == 0 && comparison == check_stamp) 
+                        {
+                            is_checked = true;
+                            auto top_candidates_backup = top_candidates;
+                            std::vector<std::pair<float, id_t>> check_candidates;
+
+                            while (top_candidates_backup.size()) {
+                                auto curr_el_pair = top_candidates_backup.top();
+                                top_candidates_backup.pop();
+                                check_candidates.emplace_back(curr_el_pair);
+                            }
+                            std::reverse(check_candidates.begin(), check_candidates.end());
+                            check_candidates.resize(num_check);
+
+                            for (int d = 0; d < D_; ++d) {
+                                vec_feats_lgb.emplace_back(data_point[d]);
+                            }
+
+                            vec_feats_lgb.emplace_back(-dist_start);
+                            vec_feats_lgb.emplace_back(-check_candidates[0].first);
+                            vec_feats_lgb.emplace_back(-check_candidates[9].first);
+                            vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
+                            vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
+                        }
+
+                        /// @brief If neighbor is closer than farest vector in top result, and result.size still less than ef
+                        if (top_candidates.top().first > dist || top_candidates.size() < ef)
+                        {
+                            candidate_set.emplace(-dist, neighbor_id);
+                            top_candidates.emplace(dist, neighbor_id);
+
+                            // give up farest result so far
+                            if (top_candidates.size() > ef) {
+                                top_candidates.pop();
+                            }
+                            
+
+                            if (top_candidates.size()) {
+                                low_bound = top_candidates.top().first;
+                            }
+                        }
+                    }
+                }
+
+                if (is_checked && data_type == 0) {
+                    int64_t out_len;
+                    double out_result = 0.;
+                    LGBM_BoosterPredictForMat(handle, vec_feats_lgb.data(), C_API_DTYPE_FLOAT32, 
+                        1, vec_feats_lgb.size(), 1, C_API_PREDICT_NORMAL, 0, -1, "", &out_len, &out_result);
+                    
+                    comparison_.fetch_add(comparison);
+                    std::priority_queue<std::pair<float, id_t>> queue_for_score;
+                    queue_for_score.emplace(out_result, 0);
+
+                    // std::swap(test_inter_results[qid].top_candidates, top_candidates);
+                    // std::swap(test_inter_results[qid].candidate_set, candidate_set);
+                    // std::swap(test_inter_results[qid].visited, visited);
+                    // std::swap(test_inter_results[qid].low_bound, low_bound);
+                    // test_inter_results[qid].ready = true;
+
+                    return queue_for_score;
+                }
+            }
+
+            comparison_.fetch_add(comparison);
+            return top_candidates;
+        }
+      
+        void SaveData(std::string data_prefix, size_t ef_search, bool is_OOD=true)
         {
             size_t recall_threshold = dataset_threshold[dataset];
+            recall_threshold = 400;
             std::cout << "[HNSW] recall_threshold: " << recall_threshold << std::endl;
             std::cout << "[HNSW] check_stamp: " << check_stamp << std::endl;
             this->prefix = dataset + "."
@@ -1315,7 +1540,9 @@ namespace anns
                 "ncheck_" + std::to_string(num_check) + "."
                 "recall@" + std::to_string(recall_at_k);
             
-            this->prefix += ".IID";
+            if (!is_OOD) {
+                this->prefix += ".IID";
+            }
 
             size_t train_label_postive = 0, test_label_postive = 0;
             for (int i = 0; i < train_label.size(); ++i) {
@@ -1334,7 +1561,7 @@ namespace anns
             std::cout << "Saving to: " << data_prefix + this->prefix << std::endl;
             utils::WriteToFile<int>(utils::Flatten(test_label), {test_label.size(), test_label[0].size()}, data_prefix + this->prefix + ".test_label.ivecs");
             utils::WriteToFile<float>(utils::Flatten(test_feats_nn), {test_feats_nn.size(), test_feats_nn[0].size()}, data_prefix + this->prefix + ".test_feats_nn.fvecs");
-            // utils::WriteToFile<float>(utils::Flatten(test_feats_lgb), {test_feats_lgb.size(), test_feats_lgb[0].size()}, data_prefix + this->prefix + ".test_feats_lgb.fvecs");
+            utils::WriteToFile<float>(utils::Flatten(test_feats_lgb), {test_feats_lgb.size(), test_feats_lgb[0].size()}, data_prefix + this->prefix + ".test_feats_lgb.fvecs");
 
             std::vector<std::vector<int>> train_label_valid;
             std::vector<std::vector<float>> train_feats_nn_valid, train_feats_lgb_valid;
@@ -1346,7 +1573,7 @@ namespace anns
             }
             utils::WriteToFile<int>(utils::Flatten(train_label_valid), {train_label_valid.size(), train_label_valid[0].size()}, data_prefix + this->prefix + ".train_label.ivecs");
             utils::WriteToFile<float>(utils::Flatten(train_feats_nn_valid), {train_feats_nn_valid.size(), train_feats_nn_valid[0].size()}, data_prefix + this->prefix + ".train_feats_nn.fvecs");
-            // utils::WriteToFile<float>(utils::Flatten(train_feats_lgb_valid), {train_feats_lgb_valid.size(), train_feats_lgb_valid[0].size()}, data_prefix + this->prefix + ".train_feats_lgb.fvecs");
+            utils::WriteToFile<float>(utils::Flatten(train_feats_lgb_valid), {train_feats_lgb_valid.size(), train_feats_lgb_valid[0].size()}, data_prefix + this->prefix + ".train_feats_lgb.fvecs");
         }
 
         // void Reset() 

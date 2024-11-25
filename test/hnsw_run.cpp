@@ -58,6 +58,7 @@ int main(int argc, char** argv)
 
     utils::Timer build_timer, query_timer;
     size_t efq = efconsturct;
+    // size_t efq = 10000;
     
     std::string index_path = 
         // "../index/" + base_name + "."

@@ -26,7 +26,8 @@ int main(int argc, char** argv)
     std::string query_name = std::string(argv[2]);
     size_t M = std::stol(argv[3]);
     size_t efq = std::stol(argv[4]);
-    size_t check_stamp = std::stol(argv[5]);
+    bool is_trained_OOD = std::stol(argv[5]);
+    size_t check_stamp = 500;
     std::string base_vectors_path;
     std::string test_vectors_path;
     std::string test_gt_path;
@@ -45,6 +46,7 @@ int main(int argc, char** argv)
         metric = L2;
         std::cout << "[Metric] L2" << std::endl;
     }
+    std::cout << "[HNSW] is trained OOD: " << is_trained_OOD << std::endl;
     
     auto nest_query_vectors = utils::Nest(std::move(query_vectors), cfg.num_query, cfg.dim_query);
     auto nest_learn_vectors = utils::Nest(std::move(learn_vectors), cfg.num_learn, cfg.dim_learn);
@@ -70,7 +72,7 @@ int main(int argc, char** argv)
         base_vectors, index_path, base_name,
         k, check_stamp, metric);
     hnsw->SetNumThreads(96);
-    // hnsw->LoadGT(query_gt_vectors, learn_gt_vectors);
+    hnsw->LoadGT(query_gt_vectors, learn_gt_vectors);
 
     build_timer.Start();
     // hnsw->BuildIndex(base_vectors);
@@ -102,7 +104,7 @@ int main(int argc, char** argv)
     }
     // std::cout << "[learn][HNSW] Recall@" << k << ": " << utils::GetRecall(k, cfg.dim_learn_gt, learn_gt_vectors, knn) << std::endl;
     std::cout << "[learn][HNSW] avg comparison: " << hnsw->GetComparisonAndClear() / (double)cfg.num_learn << std::endl;
-    hnsw->SaveData(save_prefix, efq);
+    hnsw->SaveData(save_prefix, efq, is_trained_OOD);
     return 0;
 }
 

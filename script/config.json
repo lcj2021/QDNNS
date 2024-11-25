@@ -1,5 +1,5 @@
 {
-    "imagenet.base": {
+    "ImageNet.base": {
         "M": 32,
         "efs": 1000,
         "dim": 768,
@@ -13,35 +13,35 @@
         "thresholds": [1000],
         "best_thr": 1000
     },
-    "wikipedia.base": {
+    "Wikipedia.base": {
         "M": 32,
         "efs": 1000,
         "dim": 1024,
-        "thresholds": [900, 910, 920, 930, 940, 950, 955, 960, 970, 980],
+        "thresholds": [860, 910, 960],
         "best_thr": 960
     },
-    "deep100m.base": {
+    "DEEP100m.base": {
         "M": 32,
         "efs": 1000,
         "dim": 96,
         "thresholds": [970, 975, 980],
         "best_thr": 975
     },
-    "spacev100m.base": {
+    "SPACEV100m.base": {
         "M": 32,
         "efs": 1000,
         "dim": 100,
         "thresholds": [725, 750, 775, 800, 825],
         "best_thr": 775
     },
-    "datacomp-image.base": {
+    "Datacomp-image.base": {
         "M": 32,
         "efs": 1000,
         "dim": 768,
         "thresholds": [690, 700, 750],
         "best_thr": 690
     },
-    "datacomp-text.base": {
+    "Datacomp-text.base": {
         "M": 32,
         "efs": 1000,
         "dim": 768,

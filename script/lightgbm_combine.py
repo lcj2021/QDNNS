@@ -1,4 +1,5 @@
 # conda activate /home/zhengweiguo/miniconda3/envs/hnns
+import time
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -10,37 +11,64 @@ import argparse
 
 argparse = argparse.ArgumentParser()
 argparse.add_argument('--threshold', type=int, default=1000)
-argparse.add_argument('--qonly', type=bool, default=False)
+argparse.add_argument('--type', type=int, default=0)
 threshold = argparse.parse_args().threshold
-query_only = argparse.parse_args().qonly
+model_type = argparse.parse_args().type
+IID = True
 
 dataset = 'gist1m'
-dataset = 'wikipedia.base'
-dataset = 'spacev100m.base'
-dataset = 'imagenet.base'
-dataset = 'deep100m.base'
-dataset = 'datacomp-text.base'
-dataset = 'datacomp-image.base'
+dataset = 'ImageNet.base'
+dataset = 'SPACEV100m.base'
+dataset = 'DEEP100m.base'
+dataset = 'Wikipedia.base'
+dataset = 'Datacomp-text.base'      # 400
+dataset = 'Datacomp-image.base'     # 690
 config = json.loads(open('config.json').read())
-M, efs = config[dataset]["M"], config[dataset]["efs"]
-threshold = config[dataset]["best_thr"]
+efs = config[dataset]["efs"]
 
-print(threshold, query_only)
+
+if IID:
+    threshold = argparse.parse_args().threshold
+    M = 32
+else:
+    threshold = config[dataset]["best_thr"]
+    M = config[dataset]["M"]
+    
+    # threshold = argparse.parse_args().threshold
+    M = 16
+
+print(threshold, model_type)
 dim = config[dataset]["dim"]
 efc = 1000
-ck_ts = 1000
+ck_ts = 500
+if model_type ==0 or model_type==1:
+    ck_ts = 1000
 k = 1000
 topk = 0
 
 data_prefix = '/data/disk1/liuchengjun/HNNS/sample/'
 checkpoint_prefix = '/data/disk1/liuchengjun/HNNS/checkpoint/'
-prefix = f'{dataset}.M_{M}.efc_{efc}.efs_{efs}.ck_ts_{ck_ts}.ncheck_100.recall@{k}'
-checkpoint_classification_path = f'{checkpoint_prefix}{prefix}.thr_{threshold}.classification.cross_{topk}.{"qonly." if query_only else ""}txt'
-checkpoint_regression_path = f'{checkpoint_prefix}{prefix}.thr_{threshold}.regression.cross_{topk}.{"qonly." if query_only else ""}txt'
+prefix = f'{dataset.lower()}.M_{M}.efc_{efc}.efs_{efs}.ck_ts_{ck_ts}.ncheck_100.recall@{k}'
+if IID:
+    prefix += '.IID'
+model_suffix = ''
+if model_type==0:
+    model_suffix = ''
+elif model_type==1:
+    model_suffix = 'qonly.'
+else:
+    model_suffix = 'earlystop.'
+checkpoint_classification_path = f'{checkpoint_prefix}{prefix}.thr_{threshold}.classification.cross_{topk}.{model_suffix}txt'
+checkpoint_regression_path = f'{checkpoint_prefix}{prefix}.thr_{threshold}.regression.cross_{topk}.{model_suffix}txt'
 
-train_feature = fvecs_read(f'{data_prefix}{prefix}.train_feats_nn.fvecs')
-test_feature = fvecs_read(f'{data_prefix}{prefix}.test_feats_nn.fvecs')[:, :]
-if query_only:
+if model_type==0 or model_type==1:
+    train_feature = fvecs_read(f'{data_prefix}{prefix}.train_feats_nn.fvecs')
+    test_feature = fvecs_read(f'{data_prefix}{prefix}.test_feats_nn.fvecs')[:, :]
+else:
+    train_feature = fvecs_read(f'{data_prefix}{prefix}.train_feats_lgb.fvecs')
+    test_feature = fvecs_read(f'{data_prefix}{prefix}.test_feats_lgb.fvecs')[:, :]
+    print(train_feature.shape, test_feature.shape)
+if model_type==1:
     train_feature = train_feature[:, :dim]
     test_feature = test_feature[:, :dim]
 
@@ -60,10 +88,10 @@ test_label_regression = np.log2(test_comps + 1)
 print(np.sum(test_label_classification), np.sum(train_label_classification))
 print(f'avg recall: {np.mean(train_number_recall)}')
 
-# 计算方差最大的top10个特征
-variances = np.var(train_feature, axis=0)
-top_indices = np.argsort(variances)[-topk:]
-print(top_indices)
+# # 计算方差最大的top10个特征
+# variances = np.var(train_feature, axis=0)
+# top_indices = np.argsort(variances)[-topk:]
+# print(top_indices)
 # 把这top10个特征进行交叉组合
 for i in range(topk):
     for j in range(i+1, topk):
@@ -88,26 +116,34 @@ df_query = pd.DataFrame(feat_query, columns=query_cols)
 df = pd.concat([df, df_query], axis = 1)
 offset += topk * (topk - 1) // 2
 
-if offset < len(train_feature[0]):
-    feat_dist = train_feature[:, offset: offset + 100]
-    dist_cols = [f"dist_{i}" for i in range(100)]
-    df_dist = pd.DataFrame(feat_dist, columns=dist_cols)
-    df = pd.concat([df, df_dist], axis = 1)
-    offset += 100
-if offset < len(train_feature[0]):
-    feat_dist = train_feature[:, offset: offset + 10]
-    degree_cols = [f"degree_{i}" for i in range(10)]
-    df_degree = pd.DataFrame(feat_dist, columns=degree_cols)
-    df = pd.concat([df, df_degree], axis = 1)
-    offset += 10
-if offset < len(train_feature[0]):
-    feat_update = train_feature[:, offset: offset + 3]
-    update_cols = [f"update_{i}" for i in range(3)]
-    df_update = pd.DataFrame(feat_update, columns=update_cols)
-    df = pd.concat([df, df_update], axis = 1)
-    offset += 3
+if model_type==0:
+    if offset < len(train_feature[0]):
+        feat_dist = train_feature[:, offset: offset + 100]
+        dist_cols = [f"dist_{i}" for i in range(100)]
+        df_dist = pd.DataFrame(feat_dist, columns=dist_cols)
+        df = pd.concat([df, df_dist], axis = 1)
+        offset += 100
+    if offset < len(train_feature[0]):
+        feat_dist = train_feature[:, offset: offset + 10]
+        degree_cols = [f"degree_{i}" for i in range(10)]
+        df_degree = pd.DataFrame(feat_dist, columns=degree_cols)
+        df = pd.concat([df, df_degree], axis = 1)
+        offset += 10
+    if offset < len(train_feature[0]):
+        feat_update = train_feature[:, offset: offset + 3]
+        update_cols = [f"update_{i}" for i in range(3)]
+        df_update = pd.DataFrame(feat_update, columns=update_cols)
+        df = pd.concat([df, df_update], axis = 1)
+        offset += 3
 
-assert offset == len(train_feature[0])
+    assert offset == len(train_feature[0])
+elif model_type==2:
+    if offset < len(train_feature[0]):
+        feat_dist = train_feature[:, offset: offset + 5]
+        dist_cols = [f"dist_{i}" for i in range(5)]
+        df_dist = pd.DataFrame(feat_dist, columns=dist_cols)
+        df = pd.concat([df, df_dist], axis = 1)
+        offset += 5
         
 ##################################################  ##################################################
 
@@ -140,9 +176,11 @@ if os.path.exists(checkpoint_classification_path):
 else:
     print(f'[Checkpoint] {checkpoint_classification_path} not exist!')
     print('[Checkpoint] Training!')
+    start = time.time()
     gbm_classification = lgb.train(params_classification, lgb.Dataset(df.values, label=train_label_classification))
+    end = time.time()
     gbm_classification.save_model(checkpoint_classification_path)
-    print('[Checkpoint] Done!')
+    print(f'[Checkpoint] Done! Time: {end - start}')
     
 # if os.path.exists(checkpoint_regression_path):
 #     print(f'[Checkpoint] {checkpoint_regression_path} exist!')
@@ -187,9 +225,6 @@ print(f'update importance_classification \
       update0: {update_imp_0:.2f}, update1: {update_imp_1:.2f}, update2: {update_imp_2:.2f}')
 ##################################################  ##################################################
 
-from sklearn.metrics import recall_score
-import time
-import numpy as np
 from sklearn.metrics import recall_score, roc_auc_score
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
@@ -226,9 +261,9 @@ plt.figure(figsize=(10, 8))
 plt.plot(percentages, recalls)
 plt.xlabel("Top percentage of positive examples selected (GPU Budget)")
 plt.ylabel("Recall")
-fig_path = f'{prefix}.thr_{threshold}.{"q_only" if query_only else ""}'
+fig_path = f'{prefix}.thr_{threshold}.{model_suffix}'
 plt.title(fig_path)
-plt.savefig(fig_path + '.png', dpi=300)
+plt.savefig(fig_path + 'png', dpi=300)
 plt.show()
 
 train_number_recall_mn = np.min(train_number_recall)
@@ -245,61 +280,44 @@ fig_path = f'{prefix}.recall_hist'
 plt.savefig(fig_path + '.png', dpi=300)
 plt.show()
 
-plt.figure(figsize=(10, 8))
-# plt.scatter(x = train_number_recall, y = train_comps, s=1)
-train_comps_filtered = train_comps[train_number_recall >= 950]
-train_number_recall_filtered = train_number_recall[train_number_recall >= 950]
-origin_heatmap, xedges, yedges = np.histogram2d(train_number_recall_filtered, train_comps_filtered, bins=50)
-heatmap = np.log10(origin_heatmap + 1)
-
-hm = plt.imshow(heatmap.T, origin = 'lower', extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]], aspect = 'auto', cmap = 'viridis')
-
-plt.xlabel(f'number_recall / 1000 nearest neighbors')
-# plt.xlabel(f'number_recall / 1000 nearest neighbors\n{len(train_number_recall)} points')
-plt.ylabel('NDC')
-# plt.xlim([990, 1000])
-ax = plt.gca()
-ax.invert_xaxis()
-# plt.title(f'{prefix}\nHeatmap of number_recall vs NDC')
-cbar = plt.colorbar(hm)
-cbar.set_label('Number of points (log10)')
-
-fig_path = f'{prefix}.Comp_R'
-plt.savefig(fig_path + '.png', dpi=500)
-plt.savefig(fig_path + '.pdf', dpi=500)
-plt.show()
 # for R in range(950, 1001):
 #     print(f'avg comparison for {R/1000}: {np.mean(train_comps[train_number_recall == R]):.2f}')
 
 # pearson coef r
 r, p = pearsonr(train_number_recall, train_comps)
-print(f'pearsonr: {r:.2f} | p: {p:.2f}')
+print(f'pearsonr: {r:.4f} | p: {p:.4f}')
 
-# # roc_auc score, roc_auc_score
-# from sklearn.metrics import roc_auc_score
-# roc_auc_score = roc_auc_score(test_label_classification, label_pred_combined)
-# print(f'roc_auc_score: {roc_auc_score:.2f}')
+# roc_auc score
+from sklearn.metrics import roc_auc_score
+roc_auc_score = roc_auc_score(test_label_classification, label_pred_combined)
+print(f'roc_auc_score: {roc_auc_score:.4f}')
+
+# recall, precision and F1 score
+from sklearn.metrics import recall_score, precision_score
+recall = recall_score(test_label_classification, label_pred_combined > 0.5)
+precision = precision_score(test_label_classification, label_pred_combined > 0.5)
+print(f'recall: {recall:.4f} | precision: {precision:.4f}')
 
 ##################################################  ##################################################
 
-# pct50 = np.percentile(label_pred_combined, 50)
-# label_pred_sorted = np.sort(label_pred_combined)
-# step = 0.5
-# scores = []
-# for p in np.arange(0, 100 + step, step):
-#     pct_thr = label_pred_sorted[min(int(len(label_pred_sorted) * p / 100), len(label_pred_sorted) - 1)]
-#     cpu_idx = label_pred_combined < pct_thr
-#     gpu_idx = label_pred_combined >= pct_thr
-#     cpu_recall_cnt = test_number_recall[cpu_idx]
-#     overall_recall = (np.sum(cpu_recall_cnt) + 1000 * np.sum(gpu_idx)) / len(test_label_classification)
-#     # print(f'{p}%->{pct_thr:.2f} | cpu workload: {np.sum(cpu_idx)} | \
-#     #     gpu workload: {np.sum(gpu_idx)} | \
-#     #     overall recall: {overall_recall:6f}')
-#     if overall_recall > 600:
-#         scores.append(overall_recall)
+pct50 = np.percentile(label_pred_combined, 50)
+label_pred_sorted = np.sort(label_pred_combined)
+step = 0.5
+scores = []
+for p in np.arange(0, 100 + step, step):
+    pct_thr = label_pred_sorted[min(int(len(label_pred_sorted) * p / 100), len(label_pred_sorted) - 1)]
+    cpu_idx = label_pred_combined < pct_thr
+    gpu_idx = label_pred_combined >= pct_thr
+    cpu_recall_cnt = test_number_recall[cpu_idx]
+    overall_recall = (np.sum(cpu_recall_cnt) + 1000 * np.sum(gpu_idx)) / len(test_label_classification)
+    # print(f'{p}%->{pct_thr:.2f} | cpu workload: {np.sum(cpu_idx)} | \
+    #     gpu workload: {np.sum(gpu_idx)} | \
+    #     overall recall: {overall_recall:6f}')
+    if overall_recall > 990:
+        scores.append(overall_recall)
 
-# scores = np.array(scores)
-# print(f'avg scores: {np.mean(scores):.2f}')
+scores = np.array(scores)
+print(f'avg scores: {np.mean(scores):.2f}')
 
 # print(f'test_comps: {np.mean(test_comps):.2f}')
 # print(f'test_comps: {np.sum(test_label_classification)} / {len(test_label_classification)}')

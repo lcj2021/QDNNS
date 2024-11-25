@@ -46,26 +46,26 @@ int main(int argc, char** argv)
 
     utils::Timer query_timer, train_timer;
 
-    int device = 4;
+    int device = 7;
     faiss::gpu::StandardGpuResources res;
     faiss::gpu::GpuIndexFlatConfig config;
     config.device = device;
     faiss::gpu::GpuIndexFlat gpu_index(&res, cfg.dim_base, metric, config);
     gpu_index.add(cfg.num_base, base_vectors.data());
 
-    // query_timer.Reset();    query_timer.Start();
-    // gpu_index.search(cfg.num_query, query_vectors.data(), k, dist.data(), knn.data());
-    // // gpu_index.search(cfg.num_query, query_vectors_gpu.data(), k, dist.data(), knn.data());
-    // query_timer.Stop();
     std::vector<faiss::idx_t> knn(cfg.num_query * k);
     std::vector<data_t> dist(cfg.num_query * k);
+    query_timer.Reset();    query_timer.Start();
+    gpu_index.search(cfg.num_query, query_vectors.data(), k, dist.data(), knn.data());
+    // gpu_index.search(cfg.num_query, query_vectors_gpu.data(), k, dist.data(), knn.data());
+    query_timer.Stop();
     std::vector<std::vector<faiss::idx_t>> nested_knn = 
         utils::Nest(knn, cfg.num_query, k);
-    // std::cout << "[Query][GPU] Using GT from file: " << cfg.query_gt_path << std::endl;
-    // std::cout << "[Query][GPU] Search time: " << query_timer.GetTime() << std::endl;
-    // for (int ck = 1; ck <= k; ck *= 10) {
-    //     std::cout << "[Query][GPU] Recall@" << ck << ": " << utils::GetRecall(ck, cfg.dim_query_gt, query_gt_vectors, nested_knn) << std::endl;
-    // }
+    std::cout << "[Query][GPU] Using GT from file: " << cfg.query_gt_path << std::endl;
+    std::cout << "[Query][GPU] Search time: " << query_timer.GetTime() << std::endl;
+    for (int ck = 1; ck <= k; ck *= 10) {
+        std::cout << "[Query][GPU] Recall@" << ck << ": " << utils::GetRecall(ck, cfg.dim_query_gt, query_gt_vectors, nested_knn) << std::endl;
+    }
 
     size_t batch_size = 250000;
     // std::vector<faiss::idx_t> batch_knn(batch_size * k);

@@ -8,8 +8,8 @@ step=$7
 M=$8
 is_ID=$9
 
-bin=/home/zhengweiguo/liuchengjun/HybridNNS/build/hnns
-log_path=/home/zhengweiguo/liuchengjun/HybridNNS/log/
+bin=/home/zhengweiguo/liuchengjun/QDNNS/build/hnns
+log_path=/home/zhengweiguo/liuchengjun/QDNNS/log/
 
 echo "base: $base"
 

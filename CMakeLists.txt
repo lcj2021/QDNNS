@@ -1,7 +1,7 @@
 # rm -rf * && cmake .. && make -j32
 ##################################################
 cmake_minimum_required(VERSION 3.0)
-project(HNNS)
+project(QDNNS)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -37,7 +37,7 @@ foreach(utils_file ${UTILS_LIST})
 message("Utils file: ${utils_file}")
 endforeach()
 
-cuda_add_library(HNNS SHARED
+cuda_add_library(QDNNS SHARED
     ${GRAPH_LIST}
     ${FLAT_LIST}
     ${UTILS_LIST}
@@ -46,7 +46,7 @@ cuda_add_library(HNNS SHARED
     ${GPU_HEADER_LIST}
 )
 
-target_link_libraries(HNNS 
+target_link_libraries(QDNNS 
     CUDA::cudart
     CUDA::cublas
     gtest
@@ -56,11 +56,11 @@ target_link_libraries(HNNS
     lib_lightgbm.so
 )
 
-set_target_properties(HNNS PROPERTIES LINKER_LANGUAGE CXX)
-target_include_directories(HNNS PUBLIC
+set_target_properties(QDNNS PROPERTIES LINKER_LANGUAGE CXX)
+target_include_directories(QDNNS PUBLIC
     $<BUILD_INTERFACE:${INCLUDE_DIR}/gpu>)
 
-target_compile_definitions(HNNS PUBLIC FINTEGER=int)
+target_compile_definitions(QDNNS PUBLIC FINTEGER=int)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Ofast -march=native -mtune=native -lrt")
 
@@ -76,7 +76,7 @@ set(TEST_LIST
     ${TEST_DIR}/flat_gpu.cpp
     ${TEST_DIR}/gt_cpu.cpp
     ${TEST_DIR}/gt_gpu.cpp
-    ${TEST_DIR}/hnns.cpp
+    ${TEST_DIR}/qdnns.cpp
     ${TEST_DIR}/hnsw_build.cpp
     ${TEST_DIR}/hnsw_get_data.cpp
     ${TEST_DIR}/hnsw_run.cpp
@@ -88,7 +88,7 @@ foreach(test_file ${TEST_LIST})
     message("Test file: ${test_file}")
     add_executable(${TEST_NAME} ${test_file})
     target_link_libraries(${TEST_NAME} PRIVATE 
-        HNNS
+        QDNNS
     )
 endforeach(test_file ${TEST_LIST})
 

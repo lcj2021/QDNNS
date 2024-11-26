@@ -1,5 +1,5 @@
-# HybridNNS
-Hybrid Nearest Neighbor Search index for heterogeneous systems
+# QDNNS
+Query Difficulty Driven Nearest Neighbor Search On Heterogeneous Machines
 
 ## TO FIX
 

@@ -1502,6 +1502,30 @@ namespace anns
                     }
                 }
 
+                if (!is_checked) {
+                    is_checked = true;
+                    auto top_candidates_backup = top_candidates;
+                    std::vector<std::pair<float, id_t>> check_candidates;
+
+                    while (top_candidates_backup.size()) {
+                        auto curr_el_pair = top_candidates_backup.top();
+                        top_candidates_backup.pop();
+                        check_candidates.emplace_back(curr_el_pair);
+                    }
+                    std::reverse(check_candidates.begin(), check_candidates.end());
+                    check_candidates.resize(num_check);
+
+                    for (int d = 0; d < D_; ++d) {
+                        vec_feats_lgb.emplace_back(data_point[d]);
+                    }
+
+                    vec_feats_lgb.emplace_back(-dist_start);
+                    vec_feats_lgb.emplace_back(-check_candidates[0].first);
+                    vec_feats_lgb.emplace_back(-check_candidates[9].first);
+                    vec_feats_lgb.emplace_back(check_candidates[0].first / dist_start);
+                    vec_feats_lgb.emplace_back(check_candidates[9].first / dist_start);
+                }
+
                 if (is_checked && data_type == 0) {
                     int64_t out_len;
                     double out_result = 0.;

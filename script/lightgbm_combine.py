@@ -14,15 +14,15 @@ argparse.add_argument('--threshold', type=int, default=1000)
 argparse.add_argument('--type', type=int, default=0)
 threshold = argparse.parse_args().threshold
 model_type = argparse.parse_args().type
-IID = True
+IID = False
 
 dataset = 'gist1m'
+dataset = 'Datacomp-image.base'     # 690
+dataset = 'Datacomp-text.base'      # 400
+dataset = 'DEEP100m.base'
 dataset = 'ImageNet.base'
 dataset = 'SPACEV100m.base'
-dataset = 'DEEP100m.base'
 dataset = 'Wikipedia.base'
-dataset = 'Datacomp-text.base'      # 400
-dataset = 'Datacomp-image.base'     # 690
 config = json.loads(open('config.json').read())
 efs = config[dataset]["efs"]
 
@@ -35,7 +35,7 @@ else:
     M = config[dataset]["M"]
     
     # threshold = argparse.parse_args().threshold
-    M = 16
+    M = 32
 
 print(threshold, model_type)
 dim = config[dataset]["dim"]
